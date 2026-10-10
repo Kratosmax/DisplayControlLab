@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Reader/DisplayControl.Reader.csproj" />
+    <Project Path="src/Controller/DisplayControl.Controller.csproj" />
+  </Folder>
+</Solution>

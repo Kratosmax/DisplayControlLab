@@ -1,0 +1,19 @@
+name: Build and test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build DisplayControlLab.slnx -c Release -m:1
+      - shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force temp/validation | Out-Null
+          $p = Start-Process src/Reader/bin/Release/net10.0-windows/DisplayControl.Reader.exe -ArgumentList '--self-test temp/validation/tests.txt' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content temp/validation/tests.txt.error.txt; throw 'Tests failed' }
+          Get-Content temp/validation/tests.txt
