@@ -22,7 +22,11 @@ Get-Content Directory.Build.props
 - 用户已确认创建公开 Kratosmax/DisplayControlLab，main 分支、MIT 许可证，并上传源码与发布读取器 0.2.0。该授权仅用于本轮，不扩大为后续自行发布。
 - 拟首次发布 v0.2.0：读取器 Full Setup、Lite Setup、Full ZIP、Lite ZIP 和 SHA256SUMS.txt。控制器骨架随源码上传，不包含在读取器包中。
 - 用户已确认首版手动下载更新，不加入自动更新器或更新清单。没有已发布旧客户端，不声称验证过自动升级。
-- 公开仓库 https://github.com/Kratosmax/DisplayControlLab 已创建并核验。main 首次提交、标签和 Release 正在执行；完成后必须更新线上核验状态。
+- 公开仓库 https://github.com/Kratosmax/DisplayControlLab 已创建并核验。默认分支 main；remote 为 git@github.com:Kratosmax/DisplayControlLab.git，核验 SSH 身份为 Kratosmax。HTTPS OAuth 缺 workflow scope，已复用现有 SSH 完成推送，没有新增授权或修改全局配置。
+- 发布源码基线：23973aeb10ca15f31176019ba22bc7ad1f91166d；标签 v0.2.0 指向该提交。本文件后续文档提交不改变发布二进制源码基线。
+- 读取器已正式发布：https://github.com/Kratosmax/DisplayControlLab/releases/tag/v0.2.0 。线上非草稿、非预发布，latest 路由指向 v0.2.0。
+- 2026-10-10 已核验四种包和 SHA256SUMS.txt 共五项资产：上传完成、大小与 GitHub 服务端 SHA256 均匹配本地；实际下载的 SHA256SUMS.txt 与本地逐字一致。
+- 云端构建测试成功：https://github.com/Kratosmax/DisplayControlLab/actions/runs/38043507275 、https://github.com/Kratosmax/DisplayControlLab/actions/runs/38043622090 。发布包为本地构建上传，CI 仅构建测试，不重建 Release 资产。
 
 ## 功能现状
 
@@ -69,6 +73,19 @@ AOC、MSI、RX 7900 XT、HDR 实机、其他 DPI、安装包实际安装和自�
 
 ## 当前待办与维护
 
-用户已确认建仓和首版手动更新方案。四种包已构建；Lite/Full 各 18 项测试、ZIP 内容检查和 WPF 渲染通过。首次提交推送、发布和线上校验尚在进行。安装器编译通过，实际安装未测试。
+本轮上传与首次读取器发布已完成。四种包已构建；Lite/Full 各 18 项测试、ZIP 内容检查、WPF 渲染和两次云端构建测试通过；包内没有控制器、日志或设备資料。安装器编译通过，实际安装未测试。
+
+等待用户确认下一阶段需求。长期待办：完整返回字段比较、串行自动采样、单一操作重复实验与候选识别、映射验证、控制 UI 和真实写入。没有新增授权时不从这些待办自行开发或发布。
+
+## 本轮文件清单
+
+首次建仓提交共 26 个文件：
+
+- .github/workflows/build.yml、.gitignore、CODEX_PROGRESS.md、Directory.Build.props、DisplayControlLab.slnx、LICENSE、PROJECT_STATUS.md、README.md、RELEASE_NOTES_CURRENT.md。
+- build/package-reader.ps1、build/reader.iss、config/observation.schema.json。
+- src/Controller/DisplayControl.Controller.csproj、src/Controller/Program.cs。
+- src/Reader/AuditLog.cs、src/Reader/DisplayControl.Reader.csproj、src/Reader/GlobalUsings.cs、src/Reader/MainWindow.xaml、src/Reader/MainWindow.xaml.cs、src/Reader/Models.cs、src/Reader/Native.cs、src/Reader/ObservationStore.cs、src/Reader/Program.cs、src/Reader/ReadSession.cs、src/Reader/Tests.cs、src/Reader/app.manifest。
+
+源码已收纳到本仓库，旧 MonitorInspector 目录不是构建依赖。本轮最终额外同步的是本进度文件；temp 中的验证、预览和正式包不提交。
 
 每次交付同步版本、待办、修改文件、实际测试、线上状态；删除失效内容，不记逐轮聊天。未推送不能称跨设备接续可用。当前授权不等于后续自动发布授权。
