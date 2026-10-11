@@ -1,0 +1,107 @@
+using System.Security.Cryptography;
+using System.Text;
+
+namespace MonitorInspector;
+
+public static partial class Packages
+{
+    public static IDisposable Gate() => new PackageGate();
+    private sealed class PackageGate : IDisposable
+    {
+        readonly Mutex mutex = new(false, "Local\\DisplayControl-PackageFiles-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Home)))[..20]);
+        public PackageGate() { bool acquired; try { acquired = mutex.WaitOne(10000); } catch (AbandonedMutexException) { acquired = true; } if (!acquired) { mutex.Dispose(); throw new IOException("适配包正在使用中，请稍后重试"); } }
+        public void Dispose() { mutex.ReleaseMutex(); mutex.Dispose(); }
+    }
+    public static string ContentHash(AdapterPackage package)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var file in Directory.GetFiles(package.DirectoryPath, "*", SearchOption.AllDirectories).OrderBy(x => x, StringComparer.Ordinal))
+        {
+            hash.AppendData(Encoding.UTF8.GetBytes(Path.GetRelativePath(package.DirectoryPath, file)));
+            hash.AppendData(File.ReadAllBytes(file));
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+    public static bool IsTrusted(AdapterPackage package, string? hash = null) => State().TrustedHashes.GetValueOrDefault(package.Id) == (hash ?? ContentHash(package));
+    public static void Attach(MonitorData device, AdapterPackage package, bool allowCode)
+    {
+        if (!package.Match.Matches(device)) throw new InvalidOperationException("包与当前设备 EDID 不匹配");
+        if (package.Kind == "plugin" && !allowCode) throw new InvalidOperationException("必须明确同意运行插件代码");
+        Mutate(s => {
+            if (!s.DevicePackages.TryGetValue(device.DevicePath, out var ids)) s.DevicePackages[device.DevicePath] = ids = [];
+            if (!ids.Contains(package.Id)) ids.Add(package.Id);
+            s.Disabled.Remove(package.Id);
+            if (package.Kind == "plugin") s.TrustedHashes[package.Id] = ContentHash(package);
+        });
+    }
+    public static void Detach(MonitorData device, string id) => Mutate(s => {
+        if (s.DevicePackages.TryGetValue(device.DevicePath, out var ids)) ids.Remove(id);
+        if (s.Bindings.GetValueOrDefault(device.DevicePath) == id) s.Bindings.Remove(device.DevicePath);
+    });
+    public static void Choose(MonitorData device, string feature, string provider) => Mutate(s => s.FeatureRoutes[device.DevicePath + "|" + feature] = provider);
+    private static void Mutate(Action<PackageState> mutation)
+    {
+        using var mutex = new Mutex(false, "Local\\DisplayControl-Packages-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Home)))[..20]);
+        bool acquired = false;
+        try { try { acquired = mutex.WaitOne(5000); } catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired) throw new IOException("适配配置正在被使用");
+            var state = State(); mutation(state); SaveState(state);
+        } finally { if (acquired) mutex.ReleaseMutex(); }
+    }
+    public static List<AdapterPackage> ForDevice(MonitorData device)
+    {
+        var state = State();
+        var ids = state.DevicePackages.GetValueOrDefault(device.DevicePath) ?? [];
+        if (state.Bindings.TryGetValue(device.DevicePath, out var legacy)) ids = [.. ids, legacy];
+        return List().Where(p => ids.Contains(p.Id) && !state.Disabled.Contains(p.Id) && p.Match.Matches(device)).ToList();
+    }
+    public static List<string> Broken()
+    {
+        if (!Directory.Exists(Installed)) return [];
+        var errors = new List<string>();
+        foreach (var dir in Directory.GetDirectories(Installed).Where(x => !Path.GetFileName(x).StartsWith('.')))
+            try { Load(Path.Combine(dir, "adapter.json")); } catch (Exception ex) { errors.Add(Path.GetFileName(dir) + ": " + ex.Message); }
+        return errors;
+    }
+}
+
+public sealed class Capability
+{
+    public ControlDefinition Definition { get; set; } = new();
+    public string Provider { get; set; } = "standard";
+    public string Version { get; set; } = "builtin";
+    public string Hash { get; set; } = "builtin";
+    public string Problem { get; set; } = "";
+    public string Availability { get; set; } = "unavailable";
+    public List<string> Candidates { get; set; } = [];
+}
+public static class CapabilityCatalog
+{
+    public static List<Capability> Resolve(MonitorData device)
+    {
+        var active = Packages.ForDevice(device);
+        var all = DeviceControl.Standard.Select(f => new Capability { Definition = f }).ToList();
+        foreach (var p in active) {
+            string hash = Packages.ContentHash(p);
+            bool trusted = p.Kind != "plugin" || Packages.IsTrusted(p, hash);
+            foreach (var f in p.Controls) all.Add(new() { Definition = f, Provider = p.Id, Version = p.Version, Hash = hash, Problem = !trusted ? "插件未信任或内容已变化" : "" });
+        }
+        foreach (var p in Packages.List().Where(p => p.Match.Matches(device)))
+            foreach (var hint in p.MenuHints.Where(h => all.All(c => c.Definition.Id != h.Id)))
+                all.Add(new() { Definition = new() { Id = hint.Id, Name = hint.Name, Group = hint.Group, MenuPath = hint.MenuPath, Description = hint.Description, HelpText = hint.HelpText, Readable = false, ValueType = "status" }, Provider = p.Id, Availability = "unadapted", Problem = "菜单已知，软件控制待适配" });
+        var state = Packages.State();
+        return all.GroupBy(c => c.Definition.Id).Select(group => {
+            var candidates = group.ToList();
+            string? chosen = state.FeatureRoutes.GetValueOrDefault(device.DevicePath + "|" + group.Key);
+            if (chosen == null && candidates.Any(c => c.Provider == "standard")) {
+                var preferred = active.Where(p => p.OverridesStandard.Contains(group.Key) && candidates.Any(c => c.Provider == p.Id)).ToList();
+                if (preferred.Count == 1 && candidates.Count == 2) chosen = preferred[0].Id;
+            }
+            var selected = candidates.SingleOrDefault(c => c.Provider == chosen) ?? candidates[0];
+            selected.Candidates = candidates.Select(c => c.Provider).ToList();
+            if (candidates.Count > 1 && chosen == null) selected.Problem = "提供者冲突：请选择此功能的来源";
+            if (chosen != null && candidates.All(c => c.Provider != chosen)) selected.Problem = "所选提供者已不可用";
+            return selected;
+        }).ToList();
+    }
+}

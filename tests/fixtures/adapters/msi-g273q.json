@@ -1,0 +1,82 @@
+{
+  "apiVersion": 1,
+  "id": "community.msi-g273q",
+  "name": "MSI G273Q 标准功能观察",
+  "author": "DisplayControlLab community",
+  "version": "1.0.0",
+  "kind": "protocol",
+  "match": {
+    "manufacturer": "MSI",
+    "productCode": "0x3CA8",
+    "name": "MSI G273Q"
+  },
+  "backend": "standard-ddc",
+  "dependencies": [
+    "Windows DDC/CI；显示器 DDC/CI 开启"
+  ],
+  "controls": [
+    {
+      "id": "contrast",
+      "name": "对比度",
+      "writable": false,
+      "valueType": "number",
+      "group": "image",
+      "verification": "read-observed",
+      "vcpCode": 18
+    },
+    {
+      "id": "color-preset",
+      "name": "色温预设",
+      "writable": false,
+      "valueType": "enum",
+      "group": "image",
+      "verification": "read-observed",
+      "vcpCode": 20
+    },
+    {
+      "id": "red-gain",
+      "name": "红色增益",
+      "writable": false,
+      "valueType": "number",
+      "group": "image",
+      "verification": "read-observed",
+      "vcpCode": 22
+    },
+    {
+      "id": "green-gain",
+      "name": "绿色增益",
+      "writable": false,
+      "valueType": "number",
+      "group": "image",
+      "verification": "read-observed",
+      "vcpCode": 24
+    },
+    {
+      "id": "blue-gain",
+      "name": "蓝色增益",
+      "writable": false,
+      "valueType": "number",
+      "group": "image",
+      "verification": "read-observed",
+      "vcpCode": 26
+    },
+    {
+      "id": "input-source",
+      "name": "输入源",
+      "writable": false,
+      "valueType": "enum",
+      "group": "connection",
+      "verification": "read-observed",
+      "vcpCode": 96
+    },
+    {
+      "id": "mccs-version",
+      "name": "MCCS 版本",
+      "writable": false,
+      "valueType": "status",
+      "group": "information",
+      "verification": "read-observed",
+      "vcpCode": 223
+    }
+  ]
+}

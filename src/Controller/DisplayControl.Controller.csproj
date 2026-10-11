@@ -1,1 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><StartupObject>DisplayControl.Controller.Program</StartupObject><ApplicationManifest>../Reader/app.manifest</ApplicationManifest></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../UI/DisplayControl.UI.csproj" /></ItemGroup>
+</Project>

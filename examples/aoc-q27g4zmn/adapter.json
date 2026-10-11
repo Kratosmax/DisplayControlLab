@@ -1,0 +1,559 @@
+{
+  "apiVersion": 1,
+  "id": "community.aoc-q27g4zmn",
+  "name": "AOC Q27G4ZMN 型号适配",
+  "author": "DisplayControlLab community",
+  "version": "1.5.0",
+  "kind": "protocol",
+  "match": {
+    "manufacturer": "AOC",
+    "productCode": "0xB411",
+    "name": "Q27G4ZMN"
+  },
+  "backend": "amd-ddc",
+  "dependencies": [
+    "Windows DDC/CI；AMD ADL仅用于私有功能，标准功能不依赖AMD"
+  ],
+  "controls": [
+    {
+      "id": "hdr-preset",
+      "name": "显示器 HDR 预设",
+      "writable": true,
+      "raw": {
+        "readPayload": "01 F8 E1 52",
+        "writePrefix": "03 F8 E1 52",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 52",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80
+      },
+      "rules": [
+        {
+          "maximum": 3,
+          "windowsHdr": false,
+          "values": {
+            "off": 0,
+            "picture": 1,
+            "movie": 2,
+            "game": 3
+          },
+          "labels": {
+            "off": "关闭",
+            "picture": "图片",
+            "movie": "电影",
+            "game": "游戏"
+          }
+        },
+        {
+          "maximum": 4,
+          "windowsHdr": true,
+          "values": {
+            "off": 0,
+            "display": 1,
+            "picture": 2,
+            "movie": 3,
+            "game": 4
+          },
+          "labels": {
+            "off": "关闭",
+            "display": "显示",
+            "picture": "图片",
+            "movie": "电影",
+            "game": "游戏"
+          }
+        }
+      ],
+      "valueType": "enum",
+      "group": "image",
+      "verification": "write-confirmed",
+      "menuPath": "图片 / 显示器 HDR 预设",
+      "affectedFeatures": [
+        "color-preset",
+        "red-gain",
+        "green-gain",
+        "blue-gain"
+      ]
+    },
+    {
+      "id": "eco-preset",
+      "name": "生态调节",
+      "writable": true,
+      "valueType": "enum",
+      "group": "image",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 11",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 11",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 11"
+      },
+      "rules": [
+        {
+          "maximum": 7,
+          "values": {
+            "standard": 0,
+            "energy-saving": 1,
+            "web": 2,
+            "game": 3,
+            "movie": 4,
+            "sports": 5,
+            "reading": 6,
+            "balanced": 7
+          },
+          "labels": {
+            "standard": "标准",
+            "energy-saving": "节能",
+            "web": "网络",
+            "game": "游戏",
+            "movie": "电影",
+            "sports": "运动",
+            "reading": "阅读",
+            "balanced": "均匀亮补偿"
+          }
+        }
+      ],
+      "menuPath": "图片 / 生态调节",
+      "writeWhenWindowsHdr": false
+    },
+    {
+      "id": "gamma",
+      "name": "伽马",
+      "writable": true,
+      "valueType": "enum",
+      "group": "image",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 12",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 12",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 12"
+      },
+      "rules": [
+        {
+          "maximum": 2,
+          "values": {
+            "gamma1": 0,
+            "gamma2": 1,
+            "gamma3": 2
+          },
+          "labels": {
+            "gamma1": "2.2",
+            "gamma2": "2.0",
+            "gamma3": "2.4"
+          }
+        }
+      ],
+      "writeWhenWindowsHdr": false,
+      "menuPath": "图片 / 伽马",
+      "description": "已确认 2.0 / 2.2 / 2.4；菜单中的 1.8 / 2.6 尚未确认软件写入。"
+    },
+    {
+      "id": "dynamic-contrast",
+      "name": "DCR 动态对比度",
+      "writable": true,
+      "valueType": "boolean",
+      "group": "image",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 13",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 13",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 13"
+      },
+      "rules": [
+        {
+          "maximum": 1,
+          "values": {
+            "off": 0,
+            "on": 1
+          },
+          "labels": {
+            "off": "关闭",
+            "on": "开启"
+          }
+        }
+      ],
+      "menuPath": "图片 / DCR 动态对比度",
+      "writeWhenWindowsHdr": false
+    },
+    {
+      "id": "overdrive",
+      "name": "Overdrive",
+      "writable": true,
+      "valueType": "enum",
+      "group": "game",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 51",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 51",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 51"
+      },
+      "rules": [
+        {
+          "maximum": 3,
+          "values": {
+            "off": 0,
+            "weak": 1,
+            "medium": 2,
+            "strong": 3
+          },
+          "labels": {
+            "off": "关闭",
+            "weak": "弱",
+            "medium": "中",
+            "strong": "强"
+          }
+        }
+      ],
+      "writeWhenWindowsHdr": false,
+      "menuPath": "游戏设置 / Overdrive"
+    },
+    {
+      "id": "low-input-lag",
+      "name": "低输入延迟",
+      "writable": true,
+      "valueType": "boolean",
+      "group": "game",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 55",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 55",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 55"
+      },
+      "rules": [
+        {
+          "maximum": 1,
+          "values": {
+            "off": 0,
+            "on": 1
+          },
+          "labels": {
+            "off": "关闭",
+            "on": "开启"
+          }
+        }
+      ],
+      "menuPath": "游戏设置 / 低输入延迟",
+      "description": "已在系统 SDR、显示器 HDR 关闭时完成写入、回读和恢复；HDR 条件下暂不开放。",
+      "writeWhenWindowsHdr": false
+    },
+    {
+      "id": "game-color",
+      "name": "游戏色调",
+      "writable": true,
+      "valueType": "number",
+      "group": "game",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 57",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 57",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 57"
+      },
+      "writeWhenWindowsHdr": false,
+      "menuPath": "游戏设置 / 游戏色调"
+    },
+    {
+      "id": "shadow-control",
+      "name": "暗场控制",
+      "writable": true,
+      "valueType": "number",
+      "group": "game",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 58",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 58",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 58"
+      },
+      "writeWhenWindowsHdr": false,
+      "menuPath": "游戏设置 / 暗场控制"
+    },
+    {
+      "id": "low-blue-light",
+      "name": "低蓝光模式",
+      "writable": true,
+      "valueType": "enum",
+      "group": "image",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 59",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 59",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 59"
+      },
+      "rules": [
+        {
+          "maximum": 4,
+          "values": {
+            "off": 0,
+            "multimedia": 1,
+            "web": 2,
+            "office": 3,
+            "reading": 4
+          },
+          "labels": {
+            "off": "关闭",
+            "multimedia": "多媒体",
+            "web": "网络",
+            "office": "办公室",
+            "reading": "阅读"
+          }
+        }
+      ],
+      "writeWhenWindowsHdr": false,
+      "menuPath": "图片 / 低蓝光模式"
+    },
+    {
+      "id": "crosshair",
+      "name": "准星",
+      "writable": true,
+      "valueType": "boolean",
+      "group": "game",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 5A",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 5A",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 5A"
+      },
+      "rules": [
+        {
+          "maximum": 1,
+          "values": {
+            "off": 0,
+            "on": 1
+          },
+          "labels": {
+            "off": "关闭",
+            "on": "开启"
+          }
+        }
+      ],
+      "menuPath": "游戏设置 / 准星",
+      "description": "已在系统 SDR、显示器 HDR 关闭时完成写入、回读和恢复；HDR 条件下暂不开放。",
+      "writeWhenWindowsHdr": false
+    },
+    {
+      "id": "frame-counter",
+      "name": "帧计数器",
+      "writable": true,
+      "valueType": "enum",
+      "group": "game",
+      "verification": "write-confirmed",
+      "raw": {
+        "readPayload": "01 F8 E1 5B",
+        "replyLength": 11,
+        "replyPrefix": "6E 88 02 00 F8 5B",
+        "currentOffset": 8,
+        "maximumOffset": 6,
+        "checksumSeed": 80,
+        "writePrefix": "03 F8 E1 5B"
+      },
+      "menuPath": "游戏设置 / 帧计数器",
+      "rules": [
+        {
+          "maximum": 4,
+          "values": {
+            "off": 0,
+            "top-right": 1,
+            "bottom-right": 2,
+            "bottom-left": 3,
+            "top-left": 4
+          },
+          "labels": {
+            "off": "关闭",
+            "top-right": "右上",
+            "bottom-right": "右下",
+            "bottom-left": "左下",
+            "top-left": "左上"
+          }
+        }
+      ],
+      "description": "已验证关闭、右上、右下。左侧两档写入与回读编码互换（3→4、4→3），尚未核实实际位置，暂不开放；仅在 SDR、显示器 HDR 关闭时可设置。",
+      "writeWhenWindowsHdr": false,
+      "allowedWriteValues": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "game-mode",
+      "name": "游戏模式",
+      "valueType": "enum",
+      "group": "game",
+      "menuPath": "游戏设置 / 游戏模式（厂商标准VCP定义）",
+      "vcpCode": 220,
+      "writable": false,
+      "verification": "read-observed",
+      "rules": [
+        {
+          "matchAnyMaximum": true,
+          "values": {
+            "standard": 0,
+            "fps": 11,
+            "rts": 12,
+            "racing": 13,
+            "gamer1": 14,
+            "gamer2": 15,
+            "gamer3": 16
+          },
+          "labels": {
+            "standard": "标准 / 自定义",
+            "fps": "第一人称射击",
+            "rts": "即时战略",
+            "racing": "竞速",
+            "gamer1": "玩家1",
+            "gamer2": "玩家2",
+            "gamer3": "玩家3"
+          }
+        }
+      ],
+      "backend": "standard-ddc",
+      "description": "目前仅确认读取，写入及模式联动尚未验证。"
+    },
+    {
+      "id": "image-ratio",
+      "name": "图像比例",
+      "valueType": "enum",
+      "group": "image",
+      "menuPath": "图片 / 图像比例（厂商标准VCP定义）",
+      "vcpCode": 134,
+      "writable": false,
+      "verification": "read-observed",
+      "rules": [
+        {
+          "matchAnyMaximum": true,
+          "values": {
+            "one-to-one": 1,
+            "wide": 2,
+            "four-three": 5,
+            "aspect": 35
+          },
+          "labels": {
+            "one-to-one": "1:1",
+            "wide": "宽屏 / 全屏",
+            "four-three": "4:3",
+            "aspect": "保持比例"
+          }
+        }
+      ],
+      "backend": "standard-ddc",
+      "description": "目前仅确认读取，写入及模式联动尚未验证。"
+    },
+    {
+      "id": "color-preset",
+      "name": "色温预设",
+      "valueType": "enum",
+      "group": "image",
+      "menuPath": "图片 / 色温（AOC定义）",
+      "vcpCode": 20,
+      "writable": true,
+      "verification": "read-observed",
+      "affectedFeatures": [
+        "red-gain",
+        "green-gain",
+        "blue-gain"
+      ],
+      "rules": [
+        {
+          "matchAnyMaximum": true,
+          "values": {
+            "srgb": 1,
+            "warm": 5,
+            "normal": 6,
+            "cool": 8,
+            "user": 11
+          },
+          "labels": {
+            "srgb": "sRGB",
+            "warm": "暖色（6500K）",
+            "normal": "正常（7300K，AOC定义）",
+            "cool": "冷色（9300K）",
+            "user": "用户自定义"
+          }
+        }
+      ],
+      "backend": "standard-ddc"
+    }
+  ],
+  "menuHints": [
+    {
+      "id": "adaptive-sync",
+      "name": "Adaptive-Sync",
+      "group": "game",
+      "menuPath": "游戏设置 / Adaptive-Sync"
+    },
+    {
+      "id": "local-dimming",
+      "name": "区域调光",
+      "group": "image",
+      "menuPath": "图片 / 区域调光",
+      "description": "菜单支持关闭 / 低 / 中 / 强；现有查询接口返回错误，软件控制尚待适配。"
+    },
+    {
+      "id": "color-space",
+      "name": "色彩空间",
+      "group": "image",
+      "menuPath": "图片 / 色彩空间",
+      "description": "菜单支持标准 / sRGB；现有查询接口返回错误，软件控制尚待适配。"
+    }
+  ],
+  "hdrSafety": {
+    "modeFeatureId": "hdr-preset",
+    "offValue": 0,
+    "blockedFeatures": [
+      "brightness",
+      "contrast",
+      "color-preset",
+      "red-gain",
+      "green-gain",
+      "blue-gain",
+      "gamma",
+      "eco-preset",
+      "dynamic-contrast",
+      "game-color",
+      "shadow-control",
+      "low-blue-light",
+      "display-preset",
+      "low-input-lag",
+      "crosshair",
+      "frame-counter"
+    ],
+    "restoreColorOnExit": true
+  },
+  "overridesStandard": [
+    "color-preset"
+  ]
+}

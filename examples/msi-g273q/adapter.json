@@ -1,0 +1,96 @@
+{
+  "apiVersion": 1,
+  "author": "DisplayControlLab community",
+  "version": "1.1.0",
+  "kind": "protocol",
+  "backend": "standard-ddc",
+  "dependencies": [
+    "Windows DDC/CI；使用实机确认的 DisplayPort 通道"
+  ],
+  "id": "community.msi-g273q",
+  "name": "MSI G273Q 标准适配",
+  "match": {
+    "manufacturer": "MSI",
+    "productCode": "0x3CA8",
+    "name": "MSI G273Q"
+  },
+  "controls": [
+    {
+      "id": "color-preset",
+      "name": "色温预设",
+      "valueType": "enum",
+      "group": "image",
+      "menuPath": "MCCS 色温编码（不是 MSI OSD 名称认证）",
+      "vcpCode": 20,
+      "writable": true,
+      "verification": "read-observed",
+      "writeWhenWindowsHdr": false,
+      "allowedWriteValues": [
+        5,
+        11
+      ],
+      "affectedFeatures": [
+        "red-gain",
+        "green-gain",
+        "blue-gain"
+      ],
+      "rules": [
+        {
+          "matchAnyMaximum": true,
+          "values": {
+            "6500k": 5,
+            "user": 11
+          },
+          "labels": {
+            "6500k": "6500K（标准定义）",
+            "user": "用户自定义（标准定义）"
+          }
+        }
+      ]
+    },
+    {
+      "id": "game-mode",
+      "name": "应用预设（标准编码）",
+      "valueType": "enum",
+      "group": "image",
+      "menuPath": "MCCS 0xDC；未确认 MSI 菜单对应关系",
+      "vcpCode": 220,
+      "writable": false,
+      "verification": "read-observed",
+      "rules": [
+        {
+          "matchAnyMaximum": true,
+          "values": {
+            "standard": 0,
+            "productivity": 1,
+            "mixed": 2,
+            "movie": 3,
+            "user": 4,
+            "games": 5,
+            "sports": 6,
+            "professional": 7,
+            "normal-power": 8,
+            "low-power": 9,
+            "demo": 10
+          },
+          "labels": {
+            "standard": "标准（标准定义）",
+            "productivity": "办公（标准定义）",
+            "mixed": "混合用途（标准定义）",
+            "movie": "电影（标准定义）",
+            "user": "用户（标准定义）",
+            "games": "游戏（标准定义）",
+            "sports": "运动（标准定义）",
+            "professional": "专业（标准定义）",
+            "normal-power": "标准/中等功耗（标准定义）",
+            "low-power": "标准/低功耗（标准定义）",
+            "demo": "演示（标准定义）"
+          }
+        }
+      ]
+    }
+  ],
+  "overridesStandard": [
+    "color-preset"
+  ]
+}

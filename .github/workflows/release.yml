@@ -1,0 +1,74 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify version and build
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = [string]$props.Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag/version mismatch' }
+          if (!(Test-Path RELEASE_NOTES_CURRENT.md)) { throw 'Current release notes missing' }
+          dotnet build DisplayControlLab.sln -c Release -m:1
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+          & tests/Platform/bin/Release/net8.0-windows/DisplayControl.Platform.Tests.exe . temp/validation/platform
+          if ($LASTEXITCODE -ne 0) { throw 'Platform tests failed' }
+          $p = Start-Process src/Controller/bin/Release/net8.0-windows/DisplayControl.Controller.exe -ArgumentList '--ui-test','temp/validation/ui' -WindowStyle Hidden -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content temp/validation/ui/ui-error.txt; throw 'UI tests failed' }
+      - name: Build four distribution packages
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe')) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+          }
+          ./build/package.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
+          [xml]$props = Get-Content Directory.Build.props
+          $version = [string]$props.Project.PropertyGroup.Version
+          foreach ($channel in @('Lite','Full')) {
+            dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . "temp/validation/update-$channel" "temp/release/DisplayControlLab-$version-$channel.zip" $channel
+            if ($LASTEXITCODE -ne 0) { throw "$channel update validation failed" }
+          }
+      - name: Sign manifests and validate actual release ZIPs
+        shell: pwsh
+        env:
+          DISPLAYCONTROL_SIGNING_KEY: ${{ secrets.DISPLAYCONTROL_SIGNING_KEY }}
+        run: |
+          dotnet run --project build/ReleaseTools/ReleaseTools.csproj -c Release -- temp/release RELEASE_NOTES_CURRENT.md
+          if ($LASTEXITCODE -ne 0) { throw 'Signing or final package validation failed' }
+      - name: Validate signed handoff and native installers without opening UI
+        shell: pwsh
+        run: |
+          python build/verify-updates.py
+          if ($LASTEXITCODE -ne 0) { throw 'Signed updater handoff failed' }
+          python build/verify-installers.py
+          if ($LASTEXITCODE -ne 0) { throw 'Installer smoke test failed' }
+      - name: Publish current release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = [string]$props.Project.PropertyGroup.Version
+          $assets = Get-ChildItem temp/release -File | Where-Object { $_.Extension -in '.zip','.exe','.json' -or $_.Name -eq 'SHA256SUMS.txt' } | ForEach-Object FullName
+          gh release create "v$version" @assets --repo $env:GITHUB_REPOSITORY --verify-tag --title "DisplayControlLab $version" --notes-file RELEASE_NOTES_CURRENT.md --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          gh release view "v$version" --repo $env:GITHUB_REPOSITORY --json assets,body,url | Out-File temp/validation/published-release.json -Encoding utf8
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: release-validation
+          path: temp/validation

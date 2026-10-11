@@ -1,0 +1,45 @@
+{
+  "apiVersion": 1,
+  "id": "example.simulated-plugin",
+  "name": "独立进程插件示例（模拟设备）",
+  "author": "DisplayControlLab community",
+  "version": "1.0.0",
+  "kind": "plugin",
+  "match": {
+    "manufacturer": "TST",
+    "productCode": "0x0001",
+    "name": ""
+  },
+  "entryPoint": "DisplayControl.SamplePlugin.exe",
+  "dependencies": [
+    ".NET 8 Runtime；本示例不调用驱动"
+  ],
+  "controls": [
+    {
+      "writable": true,
+      "valueType": "number",
+      "name": "模拟数值",
+      "id": "simulated-level"
+    },
+    {
+      "writable": false,
+      "valueType": "text",
+      "name": "模拟文本状态",
+      "id": "simulated-status"
+    },
+    {
+      "readable": false,
+      "valueType": "action",
+      "name": "模拟动作",
+      "writable": true,
+      "id": "simulated-action"
+    },
+    {
+      "readable": false,
+      "valueType": "text",
+      "name": "模拟只写通知",
+      "writable": true,
+      "id": "simulated-write-only"
+    }
+  ]
+}

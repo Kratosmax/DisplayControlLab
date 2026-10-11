@@ -1,91 +1,48 @@
-# DisplayControlLab 接续记录
+# DisplayControlLab 接续状态
 
-最后校准：2026-10-10。版本唯一来源：Directory.Build.props（0.2.0）。
+最后校准：2026-10-11。版本源 Directory.Build.props：0.3.0，.NET 8 / WPF / Windows x64。origin 为 https://github.com/Kratosmax/DisplayControlLab.git，main；本次重构基线 fbc8b878434aa20684ea7de60d35be2a39623c2e。用户明确授权本轮提交、推送、标签、四种包发布，以及参考 PinNote 实现更新和网络代理。最终本地候选验证已完成，尚未发布/核验线上新版本。没有使用子代理。
 
 ## 接手校准
 
-```powershell
-git status --short
-git branch --show-current
-git log -5 --oneline
-git remote -v
-git tag --list
-Get-Content Directory.Build.props
-```
+先读本页、README、版本源、相关源码和 docs/UPDATE_VALIDATION.md，再核对 git status --short、git log -3 --oneline、git remote -v、gh release list --repo Kratosmax/DisplayControlLab。原厂商研究、实验及回滚资料在项目 temp，不提交或删除。仓库级身份按技能使用小火车 <kratosthemax@gmail.com>，不改全局配置。
 
-先读本文件、README.md、当前相关源码；用 Git 和版本源校准，不把历史测试当成本轮通过。
+## 当前产品
 
-## 当前快照与授权
+控制器/读取器两个薄入口，共享 Core 与 UI。控制器负责操作、定向回读、方案和历史；读取器负责设备检查、快照、实验与协议工作台。通用 DDC 内置，协议/驱动插件由用户编辑、生成、安装；每台默认一个型号包，按功能选择通道。详细视图与两列单行紧凑视图共存，偏好持久化；两设备启动预热、写队列与意图合并、稳定顺序和滚动、功能帮助均已实现。
 
-- 用户已要求记录进度、上传本人 Git、先发布读取器，并明确引用 desktop-tool-ui-release 技能。
-- GitHub 登录账号核验为 Kratosmax；项目起初没有 Git 仓库或 remote，账号下未发现 DisplayControlLab 仓库。
-- 用户已确认创建公开 Kratosmax/DisplayControlLab，main 分支、MIT 许可证，并上传源码与发布读取器 0.2.0。该授权仅用于本轮，不扩大为后续自行发布。
-- 拟首次发布 v0.2.0：读取器 Full Setup、Lite Setup、Full ZIP、Lite ZIP 和 SHA256SUMS.txt。控制器骨架随源码上传，不包含在读取器包中。
-- 用户已确认首版手动下载更新，不加入自动更新器或更新清单。没有已发布旧客户端，不声称验证过自动升级。
-- 公开仓库 https://github.com/Kratosmax/DisplayControlLab 已创建并核验。默认分支 main；remote 为 git@github.com:Kratosmax/DisplayControlLab.git，核验 SSH 身份为 Kratosmax。HTTPS OAuth 缺 workflow scope，已复用现有 SSH 完成推送，没有新增授权或修改全局配置。
-- 发布源码基线：23973aeb10ca15f31176019ba22bc7ad1f91166d；标签 v0.2.0 指向该提交。本文件后续文档提交不改变发布二进制源码基线。
-- 读取器已正式发布：https://github.com/Kratosmax/DisplayControlLab/releases/tag/v0.2.0 。线上非草稿、非预发布，latest 路由指向 v0.2.0。
-- 2026-10-10 已核验四种包和 SHA256SUMS.txt 共五项资产：上传完成、大小与 GitHub 服务端 SHA256 均匹配本地；实际下载的 SHA256SUMS.txt 与本地逐字一致。
-- 云端构建测试成功：https://github.com/Kratosmax/DisplayControlLab/actions/runs/38043507275 、https://github.com/Kratosmax/DisplayControlLab/actions/runs/38043622090 。发布包为本地构建上传，CI 仅构建测试，不重建 Release 资产。
+主屏 AOC Q27G4ZMN / AOCB411 包 1.5.0；副屏 MSI G273Q / MSI3CA8 包 1.1.0。标准功能走 Windows DDC，已核实私有功能目前走 AMD ADL，未实现 NVIDIA/Intel 私有通道。协议包不随软件更新强制覆盖。实际范围与缺口见 docs/OSD_CONTROL_VALIDATION.md：帧计数左侧两档 SET3 回读4、SET4 回读3，暂禁用；区域调光/色域/Adaptive-Sync 缺有效协议，游戏模式/比例缺完整联动恢复验证，保持只读。不得猜未知 SET。
 
-## 功能现状
+HDR 开启/未知时禁止已知冲突功能；进入前保存色温，确认退出后恢复。系统 HDR 变化等待连接稳定与重载，不重发预设。写入只回读目标与声明联动，禁止退回全量扫描。MSI 内置标准亮度允许最多两次有条件 SET，其他操作不套用。普通更新测试不得写实机或切 HDR。
 
-读取器识别活动显示器、显卡、接口、桌面分辨率、刷新率、Windows HDR、EDID；查询声明的 DDC 功能和少量常用项。首次建立内存基线，后续比较当前值，记录前后值及备注。
+## 更新与发布模块
 
-logs/current.jsonl 正常启动时清空，记录立即刷新；子读取不清空它。observations 按连接自动保存最新资料，启动保留。controls 只收录返回数值的项；失败、跳过和完整证据留在 raw。资料只标 observed，不冒充 verified。
+src/Core/Updates：安装身份、文件租约、签名清单（公告也参与签名）、双层网络路由、大小/停滞限制、下载暂存、真实程序集/ZIP/路径/通道预检、事务备份替换与启动恢复。src/Updater 在安装目录外运行，核实主进程创建时间、最多等待60秒及两工具文件租约，无强杀。软件旧文件按安装清单清理，用户非软件文件保留。用户资料仍在 LOCALAPPDATA/DisplayControlLab，测试通过 DISPLAYCONTROL_DATA 隔离到项目 temp。
 
-Controller 是独立配置检查骨架，没有显示器写入。用户选择“先搭建双进程项目和配置格式，确认设计后再做控制”。自动采样、完整字段比较、扩展探测、候选推断、验证及真实控制未实现。读取比较不等于通信抓包。
+src/UI/UpdatePages.cs 复用原主题、卡片、按钮与下拉，位于统一设置页。后台检查不激活窗口，未保存网络值可临时手动检查，保存后才影响后台。提供当前/目标版本、签名公告、大小、阶段/线路、进度、稍后/跳过/取消和手动下载。显示器操作未完成拒绝更新交接，草稿保存后退出。Full/Lite 禁止跨通道；缺安装身份的开发目录只允许手动下载。0.2.0 正式版无更新器，必须手动过渡一次，不能冒称旧版自动升级成功。
 
-## 关键入口
+build/package.ps1 输出四包及身份；build/ReleaseTools 在受控签名环境生成 update.json、update-lite.json、update-full.json 并核验实际 ZIP。公钥在 UpdateTrust.cs。私钥仅存 GitHub 仓库 Secret，本机临时恢复副本用 Windows 当前用户保护，不得输出、提交或入包。release.yml 标签触发四包构建、核心/UI/两通道验证、签名与发布；build.yml 负责 main/PR。当前版本说明仅 RELEASE_NOTES_CURRENT.md，历史多版本说明不可直接发布。
 
-- src/Reader/Program.cs：启动、日志、限时子读取和诊断入口。
-- Native.cs / Models.cs：Windows GET、EDID/VCP 和模型。
-- ReadSession.cs：按连接隔离基线、失败保留有效值。
-- AuditLog.cs / ObservationStore.cs：日志、设备资料保存。
-- MainWindow.xaml / .xaml.cs：WPF UI；Tests.cs：解析、内存、日志和资料测试。
-- src/Controller/Program.cs、config/observation.schema.json：配置检查与契约。
-- build/package-reader.ps1 / reader.iss：四种包和 SHA256。
-- .github/workflows/build.yml：云端构建测试；RELEASE_NOTES_CURRENT.md：当前发布说明。
+## 验证与证据
 
-## 约束与协作
-
-只读阶段不引入写入、恢复出厂或默认暴力探测。数值关联不是因果验证；控制时核对设备身份、值域、效果和恢复。没有唯一身份时不承诺跨接口自动匹配。
-
-密钥、令牌、日志、设备资料和测试缓存不提交，不记录设备专属绝对路径。不得未经授权安装或复制全局工具到私有目录。
-
-版本从 Directory.Build.props 推导；使用仓库级身份“小火车 <kratosthemax@gmail.com>”，不改全局 Git。README 保留使用、自编译、AI 接续三个入口。
-
-## 可重跑验证
+此前主屏14次真实 SET、19项状态恢复证据在 temp/validation/game-controls，不当本轮更新测试。此前核心172项、UI68项；本轮各阶段核心172项、更新专项每通道51项与 UI81项已执行。正式候选最终结果以 temp/validation/updates 与 docs/UPDATE_VALIDATION.md 收尾核准，不混作云端产物的结果。
 
 ```powershell
-dotnet build DisplayControlLab.slnx -c Release -m:1
-New-Item -ItemType Directory -Force temp/validation | Out-Null
-$p = Start-Process src/Reader/bin/Release/net10.0-windows/DisplayControl.Reader.exe -ArgumentList '--self-test temp/validation/tests.txt' -Wait -PassThru
-if ($p.ExitCode -ne 0) { throw 'Tests failed' }
-Get-Content temp/validation/tests.txt
-./build/package-reader.ps1
-git diff --check
+dotnet build DisplayControlLab.sln -c Release -m:1
+& tests/Platform/bin/Release/net8.0-windows/DisplayControl.Platform.Tests.exe . temp/validation/platform
+$p = Start-Process src/Controller/bin/Release/net8.0-windows/DisplayControl.Controller.exe -ArgumentList '--ui-test','temp/validation/ui' -WindowStyle Hidden -Wait -PassThru
+./build/package.ps1 -LiteOnly -PreviewOnly
+./build/package.ps1
+dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/updates temp/release/DisplayControlLab-0.3.0-Lite.zip Lite
 ```
 
-沿用全局 .NET 10 SDK / Inno Setup 6，不创建工具副本。2026-10-10 历史验证：18 项测试、Dell DP/HDMI 26 项读取、活跃日志及子读取不清空、Controller 检查和拒绝异常资料、真实 WPF 渲染。发布前复查本轮包。
+WPF 使用原生离屏宿主，不能用 Playwright 驱动；不 Show、不抢焦点。打包需要 Inno Setup 6，已找到当前用户安装。下载与生成缓存放项目 temp。实际鼠标下拉、跨屏 DPI、其他 Windows 版本及全部硬件固件未全面验证。用户没有自行运行测试命令记录。
 
-AOC、MSI、RX 7900 XT、HDR 实机、其他 DPI、安装包实际安装和自动更新未验证。禁止把这些写成兼容保证。
+## 当前待办
 
-## 当前待办与维护
+最终双通道包/签名/外部更新器/安装器验收已通过（172核心、51×2更新、81打包UI）；完整交接与静默安装/卸载均成功，用户资料哨兵保留。现核查源码无秘密与旧失效入口，提交推送 main、创建0.3.0标签，等待 Actions 发布四包及签名清单，独立下载线上包验签/验哈希/通道/入口版本，并同步本页。没有额外用户审批阻塞。线上核验前不得宣称发布完成。后续协议缺口不属本轮扩展范围。
 
-本轮上传与首次读取器发布已完成。四种包已构建；Lite/Full 各 18 项测试、ZIP 内容检查、WPF 渲染和两次云端构建测试通过；包内没有控制器、日志或设备資料。安装器编译通过，实际安装未测试。
+## 维护
 
-等待用户确认下一阶段需求。长期待办：完整返回字段比较、串行自动采样、单一操作重复实验与候选识别、映射验证、控制 UI 和真实写入。没有新增授权时不从这些待办自行开发或发布。
+收尾更新真实提交/标签/Release/Actions状态、完整修改清单、重跑命令与测试缺口。历史实验、截图、临时受保护密钥缓存和用户日志不入 Git。跨设备接续仅在文档与源码提交并推送后成立。未来发布权限按届时用户请求核对，本页不自动扩张授权。
 
-## 本轮文件清单
-
-首次建仓提交共 26 个文件：
-
-- .github/workflows/build.yml、.gitignore、CODEX_PROGRESS.md、Directory.Build.props、DisplayControlLab.slnx、LICENSE、PROJECT_STATUS.md、README.md、RELEASE_NOTES_CURRENT.md。
-- build/package-reader.ps1、build/reader.iss、config/observation.schema.json。
-- src/Controller/DisplayControl.Controller.csproj、src/Controller/Program.cs。
-- src/Reader/AuditLog.cs、src/Reader/DisplayControl.Reader.csproj、src/Reader/GlobalUsings.cs、src/Reader/MainWindow.xaml、src/Reader/MainWindow.xaml.cs、src/Reader/Models.cs、src/Reader/Native.cs、src/Reader/ObservationStore.cs、src/Reader/Program.cs、src/Reader/ReadSession.cs、src/Reader/Tests.cs、src/Reader/app.manifest。
-
-源码已收纳到本仓库，旧 MonitorInspector 目录不是构建依赖。本轮最终额外同步的是本进度文件；temp 中的验证、预览和正式包不提交。
-
-每次交付同步版本、待办、修改文件、实际测试、线上状态；删除失效内容，不记逐轮聊天。未推送不能称跨设备接续可用。当前授权不等于后续自动发布授权。
+本轮实际变更：src/Core/Updates 下7个模块、src/Updater、src/UI/UpdatePages.cs、WorkspaceWindow.cs、ToolHost.cs；tests/Updates；build/package.ps1、suite.iss、ReleaseTools、verify-updates.py、verify-installers.py；Directory.Build.props、DisplayControlLab.sln、两工作流、README、USER_GUIDE、UPDATE_VALIDATION、RELEASE_NOTES_CURRENT、docs/releases/v0.3.0.md及本页。累计重构清单以最终Git提交为准，temp/validation/updates/package-check.json与changed-files.json保存本机哈希。主屏包与协议研究本轮未改；更新测试无硬件SET。

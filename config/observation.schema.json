@@ -1,15 +1,96 @@
 {
- "$schema": "https://json-schema.org/draft/2020-12/schema",
- "title": "DisplayControl 配置资料 v1",
- "type": "object",
- "required": ["schemaVersion", "kind", "identity", "controls"],
- "properties": {
-  "schemaVersion": {"const": 1},
-  "kind": {"enum": ["observation", "profile"]},
-  "capturedAt": {"type": "string", "format": "date-time"},
-  "identity": {"type": "object", "required": ["manufacturer", "productCode", "serial", "name", "devicePath"], "properties": {"manufacturer": {"type": "string"}, "productCode": {"type": "string"}, "serial": {"type": "string"}, "name": {"type": "string"}, "devicePath": {"type": "string"}}},
-  "controls": {"type": "array", "items": {"type": "object", "required": ["code", "name", "verification"], "properties": {"code": {"type": "string", "pattern": "^0x[0-9A-Fa-f]{2}$"}, "name": {"type": "string"}, "verification": {"enum": ["observed", "candidate", "verified"]}, "current": {"type": ["integer", "null"], "minimum": 0}, "maximum": {"type": ["integer", "null"], "minimum": 0}, "evidence": {"type": "array"}}}},
-  "changes": {"type": "array"}, "raw": {"type": "object"}
- },
- "allOf": [{"if": {"properties": {"kind": {"const": "observation"}}}, "then": {"properties": {"controls": {"items": {"properties": {"verification": {"enum": ["observed", "candidate"]}}}}}}}]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DisplayControl 读取证据 v1（不是控制协议）",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "identity",
+    "controls"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "observation"
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "manufacturer",
+        "productCode",
+        "serial",
+        "name",
+        "devicePath"
+      ],
+      "properties": {
+        "manufacturer": {
+          "type": "string"
+        },
+        "productCode": {
+          "type": "string"
+        },
+        "serial": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "devicePath": {
+          "type": "string"
+        }
+      }
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "verification"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^0x[0-9A-Fa-f]{2}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "verification": {
+            "const": "observed"
+          },
+          "current": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "maximum": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "evidence": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    "changes": {
+      "type": "array"
+    },
+    "raw": {
+      "type": "object"
+    }
+  }
 }
