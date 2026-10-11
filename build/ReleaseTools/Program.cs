@@ -18,6 +18,7 @@ foreach (string channel in new[] { "Lite", "Full" }) {
     File.WriteAllText(Path.Combine(folder, UpdateTrust.ManifestName(channel)), json);
     if (channel == "Lite") File.WriteAllText(Path.Combine(folder, "update.json"), json);
 }
-var sums = Directory.GetFiles(folder).Where(p => Path.GetFileName(p) != "SHA256SUMS.txt" && Path.GetExtension(p) is ".json" or ".exe" or ".zip").OrderBy(p => p).Select(p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))).ToLowerInvariant() + "  " + Path.GetFileName(p));
+string releasePrefix = "DisplayControlLab-" + UpdateIdentity.CurrentVersion.ToString(3) + "-";
+var sums = Directory.GetFiles(folder).Where(p => Path.GetFileName(p).StartsWith(releasePrefix, StringComparison.Ordinal) && Path.GetExtension(p) is ".exe" or ".zip" || Path.GetFileName(p) is "update.json" or "update-lite.json" or "update-full.json").OrderBy(p => p).Select(p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))).ToLowerInvariant() + "  " + Path.GetFileName(p));
 File.WriteAllLines(Path.Combine(folder, "SHA256SUMS.txt"), sums);
 Console.WriteLine("两通道清单签名及实际ZIP预检完成；已生成兼容清单与SHA256。");

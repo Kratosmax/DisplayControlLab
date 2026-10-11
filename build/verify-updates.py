@@ -1,7 +1,7 @@
 import ctypes,http.server,json,os,subprocess,sys,threading,time,uuid,zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];VERSION=ET.parse(ROOT/'Directory.Build.props').findtext('PropertyGroup/Version');OUT=ROOT/'temp/validation/updates/release-smoke';REPORT={'channels':[],'visibleWindows':False,'hardwareWrites':0,'baselineNote':'Isolated predecessor fixture; actual official 0.2.0 has no updater and requires manual transition'}
+ROOT=Path(__file__).resolve().parents[1];VERSION=ET.parse(ROOT/'Directory.Build.props').findtext('PropertyGroup/Version');OUT=ROOT/'temp/validation/updates/release-smoke';OUT.mkdir(parents=True,exist_ok=True);REPORT={'channels':[],'visibleWindows':False,'hardwareWrites':0,'baselineNote':'Isolated predecessor fixture; actual official 0.2.0 has no updater and requires manual transition'}
 def save(): (OUT/'results.json').write_text(json.dumps(REPORT,ensure_ascii=False,indent=2),encoding='utf-8')
 class Proxy(http.server.BaseHTTPRequestHandler):
  def do_GET(self):

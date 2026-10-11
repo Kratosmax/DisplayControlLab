@@ -1,6 +1,6 @@
 # DisplayControlLab 接续状态
 
-最后校准：2026-10-11。版本源 Directory.Build.props：0.3.0，.NET 8 / WPF / Windows x64。origin 为 https://github.com/Kratosmax/DisplayControlLab.git，main；本次重构基线 fbc8b878434aa20684ea7de60d35be2a39623c2e。用户明确授权本轮提交、推送、标签、四种包发布，以及参考 PinNote 实现更新和网络代理。最终本地候选验证已完成，尚未发布/核验线上新版本。没有使用子代理。
+最后校准：2026-10-11。版本源 Directory.Build.props：0.3.1，.NET 8 / WPF / Windows x64。origin 为 https://github.com/Kratosmax/DisplayControlLab.git，main；本次重构基线 fbc8b878434aa20684ea7de60d35be2a39623c2e。用户明确授权本轮提交、推送、标签、四种包发布，以及参考 PinNote 实现更新和网络代理。最终本地候选验证已完成，尚未发布/核验线上新版本。没有使用子代理。
 
 ## 接手校准
 
@@ -32,17 +32,19 @@ dotnet build DisplayControlLab.sln -c Release -m:1
 $p = Start-Process src/Controller/bin/Release/net8.0-windows/DisplayControl.Controller.exe -ArgumentList '--ui-test','temp/validation/ui' -WindowStyle Hidden -Wait -PassThru
 ./build/package.ps1 -LiteOnly -PreviewOnly
 ./build/package.ps1
-dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/updates temp/release/DisplayControlLab-0.3.0-Lite.zip Lite
+dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/updates temp/release/DisplayControlLab-0.3.1-Lite.zip Lite
 ```
 
 WPF 使用原生离屏宿主，不能用 Playwright 驱动；不 Show、不抢焦点。打包需要 Inno Setup 6，已找到当前用户安装。下载与生成缓存放项目 temp。实际鼠标下拉、跨屏 DPI、其他 Windows 版本及全部硬件固件未全面验证。用户没有自行运行测试命令记录。
 
 ## 当前待办
 
-最终双通道包/签名/外部更新器/安装器验收已通过（172核心、51×2更新、81打包UI）；完整交接与静默安装/卸载均成功，用户资料哨兵保留。现核查源码无秘密与旧失效入口，提交推送 main、创建0.3.0标签，等待 Actions 发布四包及签名清单，独立下载线上包验签/验哈希/通道/入口版本，并同步本页。没有额外用户审批阻塞。线上核验前不得宣称发布完成。后续协议缺口不属本轮扩展范围。
+最终双通道包/签名/外部更新器/安装器验收已通过（172核心、51×2更新、81打包UI）；完整交接与静默安装/卸载均成功，用户资料哨兵保留。现核查源码无秘密与旧失效入口，提交推送 main、创建0.3.1标签，等待 Actions 发布四包及签名清单，独立下载线上包验签/验哈希/通道/入口版本，并同步本页。没有额外用户审批阻塞。线上核验前不得宣称发布完成。后续协议缺口不属本轮扩展范围。
 
 ## 维护
 
 收尾更新真实提交/标签/Release/Actions状态、完整修改清单、重跑命令与测试缺口。历史实验、截图、临时受保护密钥缓存和用户日志不入 Git。跨设备接续仅在文档与源码提交并推送后成立。未来发布权限按届时用户请求核对，本页不自动扩张授权。
 
-本轮实际变更：src/Core/Updates 下7个模块、src/Updater、src/UI/UpdatePages.cs、WorkspaceWindow.cs、ToolHost.cs；tests/Updates；build/package.ps1、suite.iss、ReleaseTools、verify-updates.py、verify-installers.py；Directory.Build.props、DisplayControlLab.sln、两工作流、README、USER_GUIDE、UPDATE_VALIDATION、RELEASE_NOTES_CURRENT、docs/releases/v0.3.0.md及本页。累计重构清单以最终Git提交为准，temp/validation/updates/package-check.json与changed-files.json保存本机哈希。主屏包与协议研究本轮未改；更新测试无硬件SET。
+本轮实际变更：src/Core/Updates 下6个模块、src/Updater、src/UI/UpdatePages.cs、WorkspaceWindow.cs、ToolHost.cs；tests/Updates；build/package.ps1、suite.iss、ReleaseTools、verify-updates.py、verify-installers.py；Directory.Build.props、DisplayControlLab.sln、两工作流、README、USER_GUIDE、UPDATE_VALIDATION、RELEASE_NOTES_CURRENT、docs/releases/v0.3.1.md及本页。累计重构清单以最终Git提交为准，temp/validation/updates/package-check.json与changed-files.json保存本机哈希。主屏包与协议研究本轮未改；更新测试无硬件SET。
+
+v0.3.0候选Actions 38139324153在交接检验脚本初始化目录时报错，发布步骤被跳过，无Release。已补输出目录并递增0.3.1；保留原标签，不重打。已推送重构提交b7dce437a191e52fcd63089f130757a55cfd01ca；main CI 38139150103成功。最终发布待0.3.1候选本地复核与云端结果。

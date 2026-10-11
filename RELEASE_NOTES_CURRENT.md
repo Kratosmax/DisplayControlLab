@@ -1,4 +1,4 @@
-# DisplayControlLab 0.3.0
+# DisplayControlLab 0.3.1
 
 控制器与读取器重构为两个协同工具：通用 DDC 控制内置，私有协议和驱动插件按需安装。首次进入会预读所有显示器；数字调节合并提交并定向回读，保留详细视图与两列紧凑视图。新增功能帮助、方案与历史、快照比较、实验及协议工作台。
 
@@ -8,7 +8,7 @@
 
 统一设置页新增 GitHub URL 前缀线路（优先级 0–10、稳定故障转移、直连可禁用不可删除）与独立 HTTP 网络代理；保存前验证，当前未保存值也可用于一次检查。所有线路共享签名与包验证。
 
-**从 0.2.0 升级：旧正式版仅有读取器且没有自动更新器，需手动安装或解压 0.3.0 一次。** 旧版记录通过读取器只读导入，不自动迁移或删除。新版本使用 .NET 8，Lite 需要 .NET 8 Desktop Runtime x64；Full 包自带运行库。Setup 为当前用户安装，ZIP 解压后运行。
+**从 0.2.0 升级：旧正式版仅有读取器且没有自动更新器，需手动安装或解压 0.3.1 一次。** 旧版记录通过读取器只读导入，不自动迁移或删除。新版本使用 .NET 8，Lite 需要 .NET 8 Desktop Runtime x64；Full 包自带运行库。Setup 为当前用户安装，ZIP 解压后运行。
 
 提供 Full Setup、Lite Setup、Full ZIP、Lite ZIP，兼容清单 update.json、专用通道清单 update-lite.json / update-full.json 与 SHA256SUMS.txt。
 

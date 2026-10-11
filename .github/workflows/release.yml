@@ -63,7 +63,7 @@ jobs:
         run: |
           [xml]$props = Get-Content Directory.Build.props
           $version = [string]$props.Project.PropertyGroup.Version
-          $assets = Get-ChildItem temp/release -File | Where-Object { $_.Extension -in '.zip','.exe','.json' -or $_.Name -eq 'SHA256SUMS.txt' } | ForEach-Object FullName
+          $assets = Get-ChildItem temp/release -File | Where-Object { ($_.Name.StartsWith("DisplayControlLab-$version-") -and $_.Extension -in '.zip','.exe') -or $_.Name -in 'update.json','update-lite.json','update-full.json','SHA256SUMS.txt' } | ForEach-Object FullName
           gh release create "v$version" @assets --repo $env:GITHUB_REPOSITORY --verify-tag --title "DisplayControlLab $version" --notes-file RELEASE_NOTES_CURRENT.md --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
           gh release view "v$version" --repo $env:GITHUB_REPOSITORY --json assets,body,url | Out-File temp/validation/published-release.json -Encoding utf8

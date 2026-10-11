@@ -1,6 +1,6 @@
 # DisplayControlLab
 
-Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置，私有协议与专用驱动插件由用户按需安装。当前版本 0.3.0。控制器与读取器共用工作区和用户资料。
+Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置，私有协议与专用驱动插件由用户按需安装。当前版本 0.3.1。控制器与读取器共用工作区和用户资料。
 
 ## 下载与升级
 
@@ -58,7 +58,7 @@ UI 验证使用模拟设备和真实 WPF 离屏渲染，不显示窗口、不移
 自动更新模块在 `src/Core/Updates`，统一设置页在 `src/UI/UpdatePages.cs`，独立替换器在 `src/Updater`。参考 PinNote 的模块职责，并独立使用本产品公钥；公告本身参与签名。开发目录缺少安装身份时仅允许手动下载；Full 与 Lite 使用不同清单且禁止跨通道。
 
 ```powershell
-dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/updates temp/preview/DisplayControlLab-0.3.0-Lite.zip Lite
+dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/updates temp/preview/DisplayControlLab-0.3.1-Lite.zip Lite
 # 完整发行构建（需要 Inno Setup 6）
 ./build/package.ps1
 # 仅在受控签名环境执行；私钥由环境注入
