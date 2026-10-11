@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<defs><filter id="soft" x="-25%" y="-25%" width="160%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#273F88" flood-opacity="0.10"/></filter><clipPath id="backScreen"><rect x="82" y="45" width="141" height="86" rx="10"/></clipPath></defs>
+<rect x="68" y="37" width="169" height="121" rx="21" fill="#AFC1FA"/>
+<rect x="68" y="31" width="169" height="121" rx="21" fill="#7390ED"/>
+<rect x="82" y="45" width="141" height="86" rx="10" fill="#E7EFFF"/>
+<g clip-path="url(#backScreen)">
+<rect x="82" y="45" width="28.2" height="86" fill="#70C6CF"/>
+<rect x="110.2" y="45" width="28.2" height="86" fill="#8296E7"/>
+<rect x="138.4" y="45" width="28.2" height="86" fill="#B99ADF"/>
+<rect x="166.6" y="45" width="28.2" height="86" fill="#E6A3B6"/>
+<rect x="194.8" y="45" width="28.2" height="86" fill="#F0CB91"/>
+<rect x="82" y="114" width="70.5" height="17" fill="#F1F6FD"/>
+<rect x="152.5" y="114" width="70.5" height="17" fill="#324B8E"/>
+</g>
+<path d="M90 183H128L134 215H84Z" fill="#334BAE"/>
+<rect x="65" y="214" width="90" height="12" rx="6" fill="#3D5DD8"/>
+<rect x="21" y="80" width="181" height="124" rx="22" fill="#BCCAF4"/>
+<g filter="url(#soft)"><rect x="21" y="73" width="181" height="124" rx="22" fill="#3D5DD8"/>
+<rect x="35" y="87" width="153" height="91" rx="10" fill="#F5FAFF"/></g>
+<path d="M111.5 132.5L111.5000 96.5000A36 36 0 0 1 142.6769 114.5000Z" fill="#F1A291"/><path d="M111.5 132.5L142.6769 114.5000A36 36 0 0 1 142.6769 150.5000Z" fill="#EFBE75"/><path d="M111.5 132.5L142.6769 150.5000A36 36 0 0 1 111.5000 168.5000Z" fill="#74C8B7"/><path d="M111.5 132.5L111.5000 168.5000A36 36 0 0 1 80.3231 150.5000Z" fill="#63B8DA"/><path d="M111.5 132.5L80.3231 150.5000A36 36 0 0 1 80.3231 114.5000Z" fill="#7689E4"/><path d="M111.5 132.5L80.3231 114.5000A36 36 0 0 1 111.5000 96.5000Z" fill="#B294E0"/><circle cx="111.5" cy="132.5" r="13.32" fill="#F5FAFF"/>
+<circle cx="111.5" cy="132.5" r="8.4" fill="#D6E2F5"/>
+<circle cx="111.5" cy="132.5" r="5.9" fill="#F5FAFF"/></svg>

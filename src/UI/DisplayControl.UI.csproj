@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><UseWPF>true</UseWPF></PropertyGroup>
   <ItemGroup><ProjectReference Include="../Core/DisplayControl.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <Resource Include="../../assets/branding/displaycontrol.ico" Link="Assets/displaycontrol.ico" />
+    <Resource Include="../../assets/branding/displaycontrol.png" Link="Assets/displaycontrol.png" />
+  </ItemGroup>
 </Project>

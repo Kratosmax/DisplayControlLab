@@ -1,6 +1,16 @@
 # DisplayControlLab 接续状态
 
-最后校准：2026-10-11。版本源 Directory.Build.props：0.3.1，.NET 8 / WPF / Windows x64。origin 为 https://github.com/Kratosmax/DisplayControlLab.git，main；本次重构基线 fbc8b878434aa20684ea7de60d35be2a39623c2e。用户明确授权本轮提交、推送、标签、四种包发布，以及参考 PinNote 实现更新和网络代理。0.3.1已发布并完成线上独立验签、哈希和真实主程序更新检查/下载预检。发行代码提交f0c147c3b9daff388c83f7b06eb84aefb8a9615f，标签v0.3.1；main后续提交仅同步发行核验文档。没有使用子代理。
+最后校准：2026-10-11。版本源 Directory.Build.props：0.3.1，.NET 8 / WPF / Windows x64。origin 为 https://github.com/Kratosmax/DisplayControlLab.git，main；本次重构基线 fbc8b878434aa20684ea7de60d35be2a39623c2e。此前用户授权的四包发布、更新与网络代理工作已完成。0.3.1已发布并完成线上独立验签、哈希和真实主程序更新检查/下载预检，发行代码提交f0c147c3b9daff388c83f7b06eb84aefb8a9615f，标签v0.3.1。本轮从49d28becb2b006bd98c9f3e33c0c06bace92532e接入用户确认的图标；用户明确要求推送、不重新打包。版本与既有Release保持不变，没有使用子代理。
+
+## 已确认图标与本轮验证
+
+用户确认前屏A2六色色环、后屏B2五色色谱及黑白分区、B双屏叠层。唯一资产在assets/branding：displaycontrol.svg、displaycontrol.png、displaycontrol.ico，说明在该目录README.md。ICO含16/20/24/32/40/48/64/96/128/256十档。
+
+本轮完整变更：上述四个资产/说明；src/Controller/DisplayControl.Controller.csproj、src/Reader/DisplayControl.Reader.csproj、src/Updater/DisplayControl.Updater.csproj接入exe图标；src/UI/DisplayControl.UI.csproj嵌入共享图像资源；src/UI/WorkspaceWindow.cs为窗口、弹窗及页头接入图标；build/suite.iss为下一次安装器构建指定同一ICO；README.md展示图标；本页更新接续信息。
+
+2026-10-11实际运行dotnet build DisplayControlLab.sln -c Release -m:1，0警告/0错误；控制器--ui-test temp/validation/branding/controller，81项通过；读取器--capture temp/validation/branding/reader.png check --simulation，真实WPF离屏渲染成功。已查看页面渲染，页头图标无裁切。测试使用模拟数据、隔离资料，不Show、不抢焦点、不写硬件。Windows资源只读验证确认三个exe的十个图标帧与源ICO逐字节一致，证据在本机temp/validation/branding/icon-verification.json；ICO SHA256：3cc0a7bc540605bd1315ec97fdbcb8d851c404b06d797b3c54de7fc52ea1e0be。
+
+按用户要求未执行打包、未改版本、未创建标签或Release；安装器此次仅校准源码引用，未重新编译或安装验收。main工作流会生成预览包，因此本轮提交使用[skip ci]避免云端重新打包，本地构建及UI验证已完成。实际系统标题栏/任务栏和Explorer图标缓存未前台验证。后续正式包将在下一次经用户授权的发布中纳入图标，本轮不覆盖既有0.3.1资产。推送完成状态以Git远程main与本地HEAD相等为准。
 
 ## 接手校准
 

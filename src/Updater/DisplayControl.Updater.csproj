@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+ <PropertyGroup><OutputType>Exe</OutputType><ApplicationIcon>../../assets/branding/displaycontrol.ico</ApplicationIcon></PropertyGroup>
  <ItemGroup><ProjectReference Include="../Core/DisplayControl.Core.csproj" /></ItemGroup>
 </Project>

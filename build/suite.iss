@@ -25,6 +25,7 @@ OutputBaseFilename=DisplayControlLab-{#AppVersion}-{#Channel}-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\branding\displaycontrol.ico
 UninstallDisplayIcon={app}\DisplayControl.Controller.exe
 CloseApplications=yes
 [Files]

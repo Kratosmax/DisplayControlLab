@@ -64,6 +64,7 @@ public partial class WorkspaceWindow : Window
         workspace = new(simulation ? new SimulatedDisplayBackend() : new SystemDisplayBackend(Environment.ProcessPath!));
         page = reader ? "check" : "control";
         Title = reader ? "DisplayControl · 读取器" : "DisplayControl · 控制器";
+        Icon = BitmapFrame.Create(new Uri("pack://application:,,,/DisplayControl.UI;component/Assets/displaycontrol.ico"));
         Width = 1480; Height = 960; MinWidth = 1040; MinHeight = 700;
         FontFamily = new FontFamily("Microsoft YaHei UI"); FontSize = 14; Foreground = Brush("#202A3D"); Background = Brush("#F4F6FB");
         UseLayoutRounding = true; SnapsToDevicePixels = true;
@@ -96,7 +97,10 @@ public partial class WorkspaceWindow : Window
         root.RowDefinitions.Add(new() { Height = new GridLength(62) }); root.RowDefinitions.Add(new()); root.RowDefinitions.Add(new() { Height = new GridLength(38) });
         root.ColumnDefinitions.Add(new() { Width = new GridLength(228) }); root.ColumnDefinitions.Add(new());
         var top = new Grid { Background = Brushes.White }; top.ColumnDefinitions.Add(new() { Width = new GridLength(228) }); top.ColumnDefinitions.Add(new());
-        top.Children.Add(new TextBlock { Text = "D   DisplayControl", FontSize = 20, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) });
+        var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
+        brand.Children.Add(new Image { Source = new BitmapImage(new Uri("pack://application:,,,/DisplayControl.UI;component/Assets/displaycontrol.png")), Width = 28, Height = 28, Margin = new Thickness(0, 0, 10, 0) });
+        brand.Children.Add(new TextBlock { Text = "DisplayControl", FontSize = 18, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        top.Children.Add(brand);
         var switches = Row(); switches.Margin = new Thickness(24, 10, 0, 0);
         switches.Children.Add(Button("控制器", () => SwitchTool(false), !reader)); switches.Children.Add(Button("读取器", () => SwitchTool(true), reader));
         switches.Children.Add(Text(simulation ? "模拟设备 · 不连接硬件" : "设备控制与适配工作区", 12, "#64748C")); Grid.SetColumn(switches, 1); top.Children.Add(switches);
@@ -337,7 +341,7 @@ public partial class WorkspaceWindow : Window
     (bool Accepted, string Value) Dialog(string title, string message, string? value, string? detail)
     {
         if (!IsVisible) return (false, "");
-        var window = new Window { Title = title, Owner = this, Width = 530, MaxHeight = 720, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Background, Foreground = Foreground, FontFamily = FontFamily, FontSize = 14 };
+        var window = new Window { Title = title, Owner = this, Icon = Icon, Width = 530, MaxHeight = 720, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Background, Foreground = Foreground, FontFamily = FontFamily, FontSize = 14 };
         window.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/DisplayControl.UI;component/Theme.xaml", UriKind.Relative) });
         var p = new StackPanel { Margin = new Thickness(26) }; p.Children.Add(Text(message)); if (detail != null) p.Children.Add(Text(detail, 12, "#64748C")); var box = new TextBox { Text = value ?? "", MinHeight = 36, Margin = new Thickness(0, 8, 0, 18), Visibility = value == null ? Visibility.Collapsed : Visibility.Visible }; p.Children.Add(box); var actions = Actions(); actions.Children.Add(Button("确认", () => window.DialogResult = true, true)); actions.Children.Add(Button("取消", () => window.DialogResult = false)); p.Children.Add(actions); window.Content = p; return (window.ShowDialog() == true, box.Text);
     }

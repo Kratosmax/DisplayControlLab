@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><StartupObject>MonitorInspector.Program</StartupObject><ApplicationManifest>app.manifest</ApplicationManifest></PropertyGroup>
+ <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><StartupObject>MonitorInspector.Program</StartupObject><ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>../../assets/branding/displaycontrol.ico</ApplicationIcon></PropertyGroup>
  <ItemGroup><ProjectReference Include="../UI/DisplayControl.UI.csproj" /></ItemGroup>
 </Project>
