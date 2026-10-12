@@ -19,6 +19,8 @@ public partial class WorkspaceWindow : Window
     readonly Grid root = new();
     readonly StackPanel sidebar = new();
     readonly StackPanel navigation = new();
+    readonly List<Button> navigationButtons = [];
+    Expander? advancedNavigation;
     readonly ListBox devices = new();
     readonly StackPanel body = new();
     readonly ScrollViewer contentScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -46,7 +48,6 @@ public partial class WorkspaceWindow : Window
     string page;
     string group = "common";
     string? focusedFeature;
-    Experiment? experiment;
     Preset? selectedPreset;
     List<PlanItem>? presetPlan;
     string? presetPlanId;
@@ -62,7 +63,7 @@ public partial class WorkspaceWindow : Window
         this.reader = reader; simulation = args.Contains("--simulation") || args.Contains("--ui-test");
         int contextIndex = Array.IndexOf(args, "--context"); startupContext = contextIndex >= 0 && contextIndex + 1 < args.Length ? args[contextIndex + 1] : null;
         workspace = new(simulation ? new SimulatedDisplayBackend() : new SystemDisplayBackend(Environment.ProcessPath!));
-        page = reader ? "check" : "control";
+        page = reader ? "guided" : "control";
         Title = reader ? "DisplayControl · 读取器" : "DisplayControl · 控制器";
         Icon = BitmapFrame.Create(new Uri("pack://application:,,,/DisplayControl.UI;component/Assets/displaycontrol.ico"));
         Width = 1480; Height = 960; MinWidth = 1040; MinHeight = 700;
@@ -112,7 +113,7 @@ public partial class WorkspaceWindow : Window
         var template = new DataTemplate(typeof(MonitorData)); var devicePanel = new FrameworkElementFactory(typeof(StackPanel)); devicePanel.SetValue(FrameworkElement.MarginProperty, new Thickness(10, 10, 10, 10));
         var model = new FrameworkElementFactory(typeof(TextBlock)); model.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("DisplayName")); model.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap); model.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold); model.SetBinding(TextBlock.ToolTipProperty, new System.Windows.Data.Binding("Name")); devicePanel.AppendChild(model);
         var connection = new FrameworkElementFactory(typeof(TextBlock)); connection.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Connection")); connection.SetValue(TextBlock.FontSizeProperty, 12.0); connection.SetValue(TextBlock.ForegroundProperty, Brush("#64748C")); connection.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 5, 0, 0)); devicePanel.AppendChild(connection); template.VisualTree = devicePanel; devices.ItemTemplate = template;
-        devices.SelectionChanged += async (_, _) => { if (!suppressDeviceChange && device != null && initialized && active == null) { snapshot = deviceSnapshots.GetValueOrDefault(device.DevicePath); presetPlan = null; ShowPage(); if (snapshot == null) await Run(t => RefreshValues(t)); } };
+        devices.SelectionChanged += async (_, _) => { if (!suppressDeviceChange && device != null && initialized && active == null) { snapshot = deviceSnapshots.GetValueOrDefault(device.DevicePath); presetPlan = null; ShowPage(); if (snapshot == null && !reader) await Run(t => RefreshValues(t)); } };
         sideContent.Children.Add(devices); sideContent.Children.Add(AsyncButton("刷新设备", RefreshDevices)); sideContent.Children.Add(new Separator { Margin = new Thickness(0, 12, 0, 20) }); sideContent.Children.Add(Text("工作区", 12, "#64748C")); sideContent.Children.Add(navigation); sidebar.Children.Add(sideContent);
         var sidebarScroll = new ScrollViewer { Content = sidebar, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Background = Brush("#EDF1F7") }; Grid.SetRow(sidebarScroll, 1); root.Children.Add(sidebarScroll);
         var main = new Grid { Margin = new Thickness(30, 28, 30, 12) }; main.RowDefinitions.Add(new() { Height = GridLength.Auto }); main.RowDefinitions.Add(new() { Height = GridLength.Auto }); main.RowDefinitions.Add(new());
@@ -123,20 +124,23 @@ public partial class WorkspaceWindow : Window
         contentScroll.Content = body; Grid.SetRow(contentScroll, 2); main.Children.Add(contentScroll); Grid.SetColumn(main, 1); Grid.SetRow(main, 1); root.Children.Add(main);
         var footer = new Grid { Background = Brushes.White }; footer.ColumnDefinitions.Add(new()); footer.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); status.Margin = new Thickness(18, 0, 12, 0); status.VerticalAlignment = VerticalAlignment.Center; status.TextTrimming = TextTrimming.CharacterEllipsis; footer.Children.Add(status);
         var cancel = Button("取消当前任务", () => active?.Cancel()); cancel.Margin = new Thickness(0); cancel.Padding = new Thickness(12, 2, 12, 2); Grid.SetColumn(cancel, 1); footer.Children.Add(cancel); Grid.SetRow(footer, 2); Grid.SetColumnSpan(footer, 2); root.Children.Add(footer); Content = root;
-        foreach (var item in reader ? new[] { ("check", "设备检查"), ("snapshots", "快照比较"), ("experiments", "实验记录"), ("workbench", "协议工作台"), ("packages", "适配包"), ("settings", "设置与帮助") } : new[] { ("control", "显示器控制"), ("presets", "我的方案"), ("history", "操作历史"), ("packages", "已安装适配包"), ("settings", "设置与帮助") })
+        var advanced = new StackPanel();
+        foreach (var item in reader ? new[] { ("guided", "自动检测"), ("settings", "设置与帮助"), ("check", "设备与功能详情"), ("workbench", "协议工作台"), ("packages", "适配包") } : new[] { ("control", "显示器控制"), ("presets", "我的方案"), ("history", "操作历史"), ("packages", "已安装适配包"), ("settings", "设置与帮助") })
         {
-            var id = item.Item1; var b = Button(item.Item2, () => Navigate(id)); b.HorizontalContentAlignment = HorizontalAlignment.Left; b.Margin = new Thickness(0, 0, 0, 7); b.BorderThickness = new Thickness(0); b.Background = Brushes.Transparent; navigation.Children.Add(b); b.Tag = id;
+            var id = item.Item1; var b = Button(item.Item2, () => Navigate(id)); b.HorizontalContentAlignment = HorizontalAlignment.Left; b.Margin = new Thickness(0, 0, 0, 7); b.BorderThickness = new Thickness(0); b.Background = Brushes.Transparent; b.Tag = id; navigationButtons.Add(b);
+            (reader && id is not ("guided" or "settings") ? advanced : navigation).Children.Add(b);
         }
+        if (reader) { advancedNavigation = new Expander { Header = "高级工具", Content = advanced, Margin = new Thickness(0, 12, 0, 0) }; navigation.Children.Add(advancedNavigation); }
     }
     public async Task Initialize()
     {
         initialized = true;
         manual = Library.All<UserPreferences>("preferences").FirstOrDefault()?.ManualApply ?? false;
         compactControls = Preferences().CompactControls;
-        await Run(async t => { await RefreshDevices(t); await WarmDevices(t); });
+        await Run(async t => { await RefreshDevices(t); if (!reader) await WarmDevices(t); });
         if (startupContext != null) await AcceptContext(startupContext);
         if (startupUpdateNotice != null) { updateMessage = startupUpdateNotice; Say(startupUpdateNotice); }
-        if (!simulation) { syncTimer.Start(); _ = StartUpdateChecks(); }
+        if (!simulation) { if (!reader) syncTimer.Start(); _ = StartUpdateChecks(); }
     }
     async Task Run(Func<CancellationToken, Task> action)
     {
@@ -163,7 +167,8 @@ public partial class WorkspaceWindow : Window
     }
     void Navigate(string next)
     {
-        if (!reader && IsVisible && next is "check" or "snapshots" or "experiments" or "workbench") { OpenContext(next, focusedFeature ?? "", true); return; }
+        if (next is "snapshots" or "experiments") next = "guided";
+        if (!reader && IsVisible && next is "guided" or "check" or "workbench") { OpenContext(next, focusedFeature ?? "", true); return; }
         page = next; ShowPage();
     }
     void ShowPage()
@@ -175,11 +180,13 @@ public partial class WorkspaceWindow : Window
         foreach (var editor in numericEditors) editor.Dispose(); numericEditors.Clear();
         body.Children.Clear(); live.Clear();
         UpdateModeBadge();
-        foreach (Button b in navigation.Children) { bool selected = (string)b.Tag == page; b.Background = selected ? Brush("#E6EBFF") : Brushes.Transparent; b.Foreground = selected ? Brush("#3D5DD8") : Brush("#202A3D"); }
-        heading.Text = page switch { "control" => device?.DisplayName ?? "显示器控制", "check" => "设备检查", "snapshots" => "快照比较", "experiments" => "实验记录", "presets" => "我的方案", "history" => "操作历史", "packages" => "适配包", "workbench" => "协议工作台", _ => "设置与帮助" };
+        foreach (Button b in navigationButtons) { bool selected = (string)b.Tag == page; b.Background = selected ? Brush("#E6EBFF") : Brushes.Transparent; b.Foreground = selected ? Brush("#3D5DD8") : Brush("#202A3D"); }
+        if (advancedNavigation != null && page is "check" or "workbench" or "packages") advancedNavigation.IsExpanded = true;
+        heading.Text = page switch { "guided" => "自动检测显示器功能", "control" => device?.DisplayName ?? "显示器控制", "check" => "设备与功能详情", "presets" => "我的方案", "history" => "操作历史", "packages" => "适配包", "workbench" => "协议工作台", _ => "设置与帮助" };
         subtitle.Text = device == null ? "连接显示器后点击刷新设备；远程会话可能无法访问 DDC。" : $"{device.Connection} · {device.Resolution} · {device.RefreshRate} · Windows HDR：{snapshot?.Device.Hdr ?? device.Hdr}";
         banner.Text = simulation ? "模拟工作区：这里的值和操作不代表真实显示器支持。" : "标准功能内置；私有功能按需安装。读取失败不等于设备不支持。";
-        switch (page) { case "control": ControlsPage(); break; case "check": CheckPage(); break; case "snapshots": SnapshotsPage(); break; case "experiments": ExperimentsPage(); break; case "presets": PresetsPage(); break; case "history": HistoryPage(); break; case "packages": PackagesPage(); break; case "workbench": WorkbenchPage(); break; default: SettingsPage(); break; }
+        if (reader && page == "guided" && !simulation) banner.Text = "发现 → 标准 / 厂商识别 → 对比验证 → 生成适配包。结果自动保存；启用试调并确认后才会修改允许的图像项。";
+        switch (page) { case "guided": GuidedPage(); break; case "control": ControlsPage(); break; case "check": CheckPage(); break; case "presets": PresetsPage(); break; case "history": HistoryPage(); break; case "packages": PackagesPage(); break; case "workbench": WorkbenchPage(); break; default: SettingsPage(); break; }
         contentScroll.UpdateLayout(); contentScroll.ScrollToVerticalOffset(offset);
     }
     void ControlsPage()
@@ -199,7 +206,7 @@ public partial class WorkspaceWindow : Window
         var presets = Section("我的方案", "保存语义选项，下次按当前系统条件解析。"); foreach (var p in Library.All<Preset>("presets").Where(p => p.DevicePath == device.DevicePath).Take(4)) presets.Children.Add(Button(p.Name, () => { selectedPreset = p; Navigate("presets"); }));
         presets.Children.Add(Button("＋ 保存当前状态", () => Navigate("presets"))); aside.Children.Add(Card(presets));
         var adaptation = Section("设备与适配", "Windows HDR 与显示器 HDR 预设是两个独立状态。"); adaptation.Children.Add(Text("Windows HDR：" + (snapshot?.Device.Hdr ?? device.Hdr))); adaptation.Children.Add(Text("私有来源：" + string.Join("、", (snapshot?.Readings ?? []).Where(r => r.Capability.Provider != "standard").Select(r => r.Capability.Provider).Distinct()), 13, "#64748C")); adaptation.Children.Add(Button("管理适配包", () => Navigate("packages"))); adaptation.Children.Add(Button("查看完整功能目录", () => { group = "all"; ShowPage(); })); aside.Children.Add(Card(adaptation));
-        var research = Section("想知道设置改变了什么？", "自动带入当前设备、功能和来源；分段采集避免标记时机错误。"); research.Children.Add(Button("记录一次变化 ↗", () => OpenContext("experiments", focusedFeature ?? ""), true)); aside.Children.Add(Card(research, "#E9EDFF"));
+        var research = Section("想知道设置改变了什么？", "在读取器先读一次，修改菜单后再读，自动对比并保存。"); research.Children.Add(Button("记录一次变化 ↗", () => OpenContext("guided", focusedFeature ?? ""), true)); aside.Children.Add(Card(research, "#E9EDFF"));
         var recent = Library.All<Operation>("operations").FirstOrDefault(o => o.Before.Device.DevicePath == device.DevicePath);
         if (recent != null) { var p = Section("最近操作", recent.ToString()); p.Children.Add(AsyncButton("核查并恢复本次已修改项", t => Restore(recent, t))); p.Children.Add(Button("查看详情", () => Navigate("history"))); aside.Children.Add(Card(p, "#EAF5F0")); }
     }
@@ -207,6 +214,7 @@ public partial class WorkspaceWindow : Window
     {
         target.Children.Clear(); if (device == null) return;
         var capabilities = snapshot?.Device.DevicePath == device.DevicePath && snapshot.Readings.Count > 0 ? snapshot.Readings.Select(r => r.Capability).ToList() : workspace.Backend.Capabilities(device);
+        if (!reader && Packages.VerifiedControls(device) is { } verified) capabilities = capabilities.Where(c => verified.Contains(c.Definition.Id)).ToList();
         var visible = capabilities.Where(c => (group == "all" || group == "common" && (c.Definition.Id is "brightness" or "contrast" or "hdr-preset" or "color-preset" || Favorites().Contains(c.Definition.Id)) || group == c.Definition.Group || group == "connection" && c.Definition.Group is "device" or "information" or "osd") && (search.Text.Length == 0 || (c.Definition.Name + c.Definition.Id + c.Provider).Contains(search.Text, StringComparison.OrdinalIgnoreCase)));
         var items = visible.OrderBy(c => c.Definition.Id == "hdr-preset" ? 0 : c.Definition.Id == "color-preset" ? 2 : 1).ToList();
         if (compactControls && group == "common") items = items.OrderBy(c => c.Definition.Id switch { "brightness" => 0, "contrast" => 1, "color-preset" => 2, "hdr-preset" => 3, _ => 4 }).ToList();
@@ -229,8 +237,9 @@ public partial class WorkspaceWindow : Window
     Border FeatureCard(Capability c, bool compact = false, bool dense = false)
     {
         var f = c.Definition; var r = snapshot?.Readings.SingleOrDefault(r => r.Capability.Definition.Id == f.Id);
+        if (r != null && !DisplayWorkspace.SameCapability(r.Capability, c)) r = null;
         bool recovering = device != null && modeReloading.Contains(device.DevicePath);
-        var p = FeatureSection(f); var current = Text(recovering ? "正在恢复显示状态…" : r?.Display(snapshot!.Device.WindowsHdrEnabled) ?? "等待检查…", 17, "#3D5DD8"); live[f.Id] = current; p.Children.Add(current);
+        var p = FeatureSection(f, dense); var current = Text(recovering ? "正在恢复显示状态…" : r?.Display(snapshot!.Device.WindowsHdrEnabled) ?? "等待检查…", 17, "#3D5DD8"); live[f.Id] = current; p.Children.Add(current);
         if (!compact) p.Children.Add(Text($"{(c.Provider == "standard" ? "标准 DDC" : c.Provider)} · {c.Version} · {(f.Writable ? "声明可写" : "只读")} · {(r == null ? "未检查" : r.Time.ToString("HH:mm:ss"))}", 12, "#64748C"));
         if (c.Candidates.Count > 1) { var choose = new ComboBox { ItemsSource = c.Candidates, SelectedItem = c.Problem.Length == 0 ? c.Provider : null, MinHeight = 32 }; choose.SelectionChanged += (_, _) => { if (choose.SelectedItem is string id) { Packages.Choose(device!, f.Id, id); snapshot = null; ShowPage(); _ = Run(t => RefreshValues(t)); } }; p.Children.Add(choose); }
         string problem = c.Problem;
@@ -244,6 +253,7 @@ public partial class WorkspaceWindow : Window
         if (!dense && !string.IsNullOrWhiteSpace(f.Description)) p.Children.Add(Text(f.Description, 13, "#64748C"));
         if (controlProblems.TryGetValue(device!.DevicePath + "|" + f.Id, out var failure)) p.Children.Add(Text(failure, 13, "#9A6612"));
         var editorReading = r?.Result.Status == "ok" ? r : lastKnownReadings.GetValueOrDefault(device.DevicePath + "|" + f.Id);
+        if (editorReading != null && !DisplayWorkspace.SameCapability(editorReading.Capability, c)) editorReading = null;
         if (f.Readable && r?.Result.Status is not (null or "ok" or "mismatch")) {
             if (editorReading?.Result.Current is uint previous) p.Children.Add(Text($"上次确认值：{previous}；当前值尚未确认", 12, "#64748C"));
             var retryTarget = Library.Copy(snapshot!.Device);
@@ -279,8 +289,8 @@ public partial class WorkspaceWindow : Window
         TextBlock? linkage = DisplayWorkspace.AffectedScope(f).Count > 0 ? Text("联动核查：" + string.Join("、", DisplayWorkspace.AffectedScope(f)) + "；应用后重新读取，不自动写回。", 12, "#64748C") : null;
         if (!dense && linkage != null) p.Children.Add(linkage);
         var tools = Actions();
-        if (reader) { tools.Children.Add(AsyncButton("检查此功能", t => RefreshValues(t, [f.Id]))); tools.Children.Add(Button("记录变化", () => OpenContext("experiments", f.Id))); }
-        else { tools.Children.Add(Button("在读取器研究 ↗", () => OpenContext("check", f.Id, true))); tools.Children.Add(Button(Favorites().Contains(f.Id) ? "取消常用" : "加入常用", () => ToggleFavorite(f.Id))); }
+        if (reader) { tools.Children.Add(AsyncButton("检查此功能", t => RefreshValues(t, [f.Id]))); tools.Children.Add(Button("记录变化", () => OpenContext("guided", f.Id))); }
+        else { tools.Children.Add(Button("在读取器研究 ↗", () => OpenContext("guided", f.Id, true))); tools.Children.Add(Button(Favorites().Contains(f.Id) ? "取消常用" : "加入常用", () => ToggleFavorite(f.Id))); }
         if (dense) {
             var more = new StackPanel();
             more.Children.Add(Text($"{c.Provider} · {c.Version} · {(f.Writable ? "声明可写" : "只读")}", 12, "#64748C"));
@@ -306,7 +316,7 @@ public partial class WorkspaceWindow : Window
     }
     void CheckPage()
     {
-        var p = Section("检查当前设备", "只查询已知标准功能和已安装适配包。失败不会自动扩大扫描范围。"); var actions = Actions(); actions.Children.Add(AsyncButton("检查已知功能", t => RefreshValues(t), true)); actions.Children.Add(Button("保存快照", SaveSnapshot)); actions.Children.Add(Button("比较快照", () => Navigate("snapshots"))); actions.Children.Add(Button("新建分段实验", () => Navigate("experiments"))); p.Children.Add(actions); body.Children.Add(Card(p));
+        var p = Section("检查当前设备", "查看已知标准功能和已安装适配包的读数。要比较菜单变化，请回到开始读取。"); var actions = Actions(); actions.Children.Add(AsyncButton("刷新功能详情", t => RefreshValues(t), true)); actions.Children.Add(Button("返回读取与对比", () => Navigate("guided"))); p.Children.Add(actions); body.Children.Add(Card(p));
         if (snapshot != null) {
             foreach (var reading in snapshot.Readings) reading.DisplayHdrContext = snapshot.Device.WindowsHdrEnabled;
             var grid = Table(); grid.Columns.Add(Column("功能", "Capability.Definition.Name", 1.2)); grid.Columns.Add(Column("当前状态", "DisplayText", 1.2)); grid.Columns.Add(Column("原始编码", "Result.Current", .5)); grid.Columns.Add(Column("范围", "Result.Maximum", .5)); grid.Columns.Add(Column("结果", "Result.Message", 1.5)); grid.Columns.Add(Column("来源", "Capability.Provider", 1.2)); grid.ItemsSource = snapshot.Readings; if (focusedFeature != null) { grid.SelectedItem = snapshot.Readings.FirstOrDefault(r => r.Capability.Definition.Id == focusedFeature); if (grid.SelectedItem != null) grid.ScrollIntoView(grid.SelectedItem); } body.Children.Add(Card(grid));
@@ -318,19 +328,16 @@ public partial class WorkspaceWindow : Window
             string id = Library.NewId(); Library.Save("legacy-observations", id, copy); Say("扩展结果已保存：" + Path.Combine(Library.Folder("legacy-observations"), id + ".json"));
         })); body.Children.Add(Card(advanced));
     }
-    void SaveSnapshot()
-    {
-        if (snapshot == null) { Say("先检查设备，再保存快照。"); return; }
-        string? name = Prompt("保存快照", "快照名称", "当前状态"); if (name == null) return; var copy = Library.Copy(snapshot); copy.Id = Library.NewId(); copy.Name = name; Library.Save("snapshots", copy.Id, copy); Say("快照已保存，可关闭软件后重新比较。");
-    }
     static DataGrid Table() => new() { MinHeight = 120, MaxHeight = 470, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto };
     static DataGridTextColumn Column(string title, string binding, double weight) => new() { Header = title, Binding = new System.Windows.Data.Binding(binding), Width = new DataGridLength(weight, DataGridLengthUnitType.Star), MinWidth = 80 };
     void SettingsPage()
     {
         UpdatesSection();
-        var p = Section("控制习惯", "数字滑块松开或停止键盘调整后，只提交最新设置；也可以手动应用。"); var toggle = new CheckBox { Content = "数字调节仅在点击“应用”后发送", IsChecked = manual, Margin = new Thickness(0, 8, 0, 16) };
-        toggle.Click += (_, _) => { manual = toggle.IsChecked == true; var pref = Preferences(); pref.ManualApply = manual; Library.Save("preferences", pref.Id, pref); Say("设置已保存"); }; p.Children.Add(toggle); body.Children.Add(Card(p));
-        var help = Section("如何使用", "1. 选显示器，等待读取；亮度直接拖动，预设直接点击。\n2. 私有功能先在适配包页导入，再应用到这台设备。\n3. 研究菜单切换：采集基线 → 暂停后切菜单 → 命名新段并采集 → 对比。\n4. 方案应用前预检；异常先核查，不盲目重发。\n5. 标准功能读取失败、菜单未适配与当前模式锁定是不同状态。"); help.Children.Add(Text("共享资料：" + Packages.Home, 13, "#64748C")); help.Children.Add(Text("所有测试与后台同步均不会主动激活窗口。切换工具按钮由用户点击后才显示目标。", 13, "#64748C")); body.Children.Add(Card(help));
+        if (!reader) {
+            var p = Section("控制习惯", "数字滑块松开或停止键盘调整后，只提交最新设置；也可以手动应用。"); var toggle = new CheckBox { Content = "数字调节仅在点击“应用”后发送", IsChecked = manual, Margin = new Thickness(0, 8, 0, 16) };
+            toggle.Click += (_, _) => { manual = toggle.IsChecked == true; var pref = Preferences(); pref.ManualApply = manual; Library.Save("preferences", pref.Id, pref); Say("设置已保存"); }; p.Children.Add(toggle); body.Children.Add(Card(p));
+        }
+        var help = Section("如何使用", "1. 选显示器，等待读取；亮度直接拖动，预设直接点击。\n2. 私有功能先在适配包页导入，再应用到这台设备。\n3. 读取器：一键检测 → 查看验证结果 → 导出或直接应用适配包；未知私有功能可生成 AI 提示词。\n4. 方案应用前预检；异常先核查，不盲目重发。\n5. 标准功能读取失败、菜单未适配与当前模式锁定是不同状态。"); help.Children.Add(Text("共享资料：" + Packages.Home, 13, "#64748C")); help.Children.Add(Text("所有测试与后台同步均不会主动激活窗口。切换工具按钮由用户点击后才显示目标。", 13, "#64748C")); body.Children.Add(Card(help));
         var nickname = Section("设备昵称", "昵称只保存在用户资料，不改显示器和协议包。"); var name = new TextBox { Text = device == null ? "" : Preferences().Nicknames.GetValueOrDefault(device.DevicePath, device.Name), MinHeight = 34 }; nickname.Children.Add(name); nickname.Children.Add(Button("保存昵称", () => { if (device == null) return; var pref = Preferences(); pref.Nicknames[device.DevicePath] = name.Text; Library.Save("preferences", pref.Id, pref); device.Nickname = name.Text; devices.Items.Refresh(); ShowPage(); Say("昵称已保存：" + name.Text); })); body.Children.Add(Card(nickname));
     }
     UserPreferences Preferences() => Library.All<UserPreferences>("preferences").FirstOrDefault() ?? new();

@@ -79,9 +79,9 @@ public sealed class DdcResult
 public static class Parsers
 {
     // Parse the vcp(...) section with balanced parentheses, not a flat regex.
-    public static Dictionary<byte, List<byte>> Capabilities(string text)
+    public static Dictionary<byte, List<ushort>> Capabilities(string text)
     {
-        var result = new Dictionary<byte, List<byte>>();
+        var result = new Dictionary<byte, List<ushort>>();
         var start = Regex.Match(text, @"\bvcp\s*\(", RegexOptions.IgnoreCase);
         if (!start.Success) return result;
         var pos = start.Index + start.Length;
@@ -92,7 +92,7 @@ public static class Parsers
             var code = HexToken(text, ref pos);
             if (code is null) throw new FormatException("VCP 能力字符串格式异常，已停止解析。");
             SkipSpace(text, ref pos);
-            var values = new List<byte>();
+            var values = new List<ushort>();
             if (pos < text.Length && text[pos] == '(')
             {
                 pos++;
@@ -101,23 +101,23 @@ public static class Parsers
                     SkipSpace(text, ref pos);
                     if (pos >= text.Length) throw new FormatException("VCP 能力字符串被截断。");
                     if (text[pos] == ')') { pos++; break; }
-                    var value = HexToken(text, ref pos);
+                    var value = HexToken(text, ref pos, 4);
                     if (value is null) throw new FormatException("VCP 取值格式异常。");
                     values.Add(value.Value);
                 }
             }
-            result[code.Value] = values;
+            result[(byte)code.Value] = values;
         }
         if (pos >= text.Length) throw new FormatException("VCP 能力字符串缺少结束括号。");
         return result;
     }
     private static void SkipSpace(string text, ref int pos) { while (pos < text.Length && char.IsWhiteSpace(text[pos])) pos++; }
-    private static byte? HexToken(string text, ref int pos)
+    private static ushort? HexToken(string text, ref int pos, int digits = 2)
     {
         int start = pos;
         while (pos < text.Length && Uri.IsHexDigit(text[pos])) pos++;
-        if (pos == start || pos - start > 2) return null;
-        return Convert.ToByte(text[start..pos], 16);
+        if (pos == start || pos - start > digits) return null;
+        return Convert.ToUInt16(text[start..pos], 16);
     }
     public static EdidData Edid(byte[] bytes)
     {
@@ -182,7 +182,7 @@ public static class VcpNames
         [0x87]="锐度",[0x8D]="音频静音",[0xC0]="使用时间",[0xC8]="显示控制器类型",[0xC9]="固件级别",
         [0xCA]="OSD",[0xCC]="OSD 语言",[0xD6]="电源状态",[0xDC]="显示应用 / 画面预设",[0xDF]="MCCS 版本"
     };
-    public static string Name(byte code) => Names.GetValueOrDefault(code, code >= 0xE0 ? "厂商专用（含义未知）" : "未收录 / 含义未知");
+    public static string Name(byte code) => VcpRecognition.Name(code) ?? Names.GetValueOrDefault(code, code >= 0xE0 ? "厂商专用（含义未知）" : "未收录 / 含义未知");
     public static string Interpret(byte code, uint value) => code switch
     {
         0x14 => value switch { 1=>"sRGB",4=>"5000K",5=>"6500K",6=>"7500K",8=>"9300K",11=>"用户自定义",_=>"取值含义待查" } + "（标准解释，厂商可能不同）",

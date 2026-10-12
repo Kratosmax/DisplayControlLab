@@ -45,7 +45,7 @@ public partial class WorkspaceWindow
 {
     readonly HashSet<string> expandedFeatureHelp = [];
 
-    StackPanel FeatureSection(ControlDefinition feature)
+    StackPanel FeatureSection(ControlDefinition feature, bool compact = false)
     {
         var panel = new StackPanel();
         var heading = new Grid { Margin = new Thickness(0, 0, 0, 10) };
@@ -54,14 +54,14 @@ public partial class WorkspaceWindow
         string explanation = FeatureHelp.For(feature);
         var text = Text(explanation, 13, "#465671"); text.Margin = new Thickness(0);
         var details = new Border { Child = text, Background = Brush("#F3F6FD"), CornerRadius = new CornerRadius(6), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 12), Visibility = expandedFeatureHelp.Contains(feature.Id) ? Visibility.Visible : Visibility.Collapsed };
-        var help = new Button { Content = expandedFeatureHelp.Contains(feature.Id) ? "收起说明" : "? 说明" };
+        var help = new Button { Content = compact ? "?" : expandedFeatureHelp.Contains(feature.Id) ? "收起说明" : "? 说明" };
         help.MinHeight = 28; help.Padding = new Thickness(8, 3, 8, 3); help.FontSize = 12; help.Margin = new Thickness(0); help.Foreground = Brush("#3D5DD8");
         help.ToolTip = new ToolTip { Content = Text(explanation, 13), MaxWidth = 360, Background = Brush("#F3F6FD"), BorderBrush = Brush("#DDE4F0"), Padding = new Thickness(12) };
         AutomationProperties.SetName(help, feature.Name + "：展开或收起功能说明");
         help.Click += (_, _) => {
             bool expand = details.Visibility != Visibility.Visible;
             details.Visibility = expand ? Visibility.Visible : Visibility.Collapsed;
-            help.Content = expand ? "收起说明" : "? 说明";
+            help.Content = compact ? "?" : expand ? "收起说明" : "? 说明";
             if (expand) expandedFeatureHelp.Add(feature.Id); else expandedFeatureHelp.Remove(feature.Id);
         };
         Grid.SetColumn(help, 1); heading.Children.Add(help); panel.Children.Add(heading); panel.Children.Add(details);

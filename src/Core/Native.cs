@@ -221,7 +221,7 @@ public static partial class Native
             {
                 var ph = physical[i];
                 string label = $"{i + 1}: {ph.Description}";
-                var declared = new Dictionary<byte, List<byte>>();
+                var declared = new Dictionary<byte, List<ushort>>();
                 if (GetCapabilitiesStringLength(ph.Handle, out var length))
                 {
                     if (length is > 0 and <= 65536)

@@ -23,7 +23,7 @@ public static partial class Packages
         return Convert.ToHexString(hash.GetHashAndReset());
     }
     public static bool IsTrusted(AdapterPackage package, string? hash = null) => State().TrustedHashes.GetValueOrDefault(package.Id) == (hash ?? ContentHash(package));
-    public static void Attach(MonitorData device, AdapterPackage package, bool allowCode)
+    public static void Attach(MonitorData device, AdapterPackage package, bool allowCode, bool selectControls = false)
     {
         if (!package.Match.Matches(device)) throw new InvalidOperationException("包与当前设备 EDID 不匹配");
         if (package.Kind == "plugin" && !allowCode) throw new InvalidOperationException("必须明确同意运行插件代码");
@@ -32,12 +32,24 @@ public static partial class Packages
             if (!ids.Contains(package.Id)) ids.Add(package.Id);
             s.Disabled.Remove(package.Id);
             if (package.Kind == "plugin") s.TrustedHashes[package.Id] = ContentHash(package);
+            if (selectControls) foreach (var control in package.Controls) s.FeatureRoutes[device.DevicePath + "|" + control.Id] = package.Id;
+            if (package.Id.StartsWith("user.detected-", StringComparison.Ordinal) && package.Controls.All(c => c.Writable && c.Verification == "write-confirmed") && package.MenuHints.Count == 0) {
+                s.VerifiedControlProfiles[device.DevicePath] = package.Id;
+                foreach (var control in package.Controls) s.FeatureRoutes[device.DevicePath + "|" + control.Id] = package.Id;
+            }
         });
     }
     public static void Detach(MonitorData device, string id) => Mutate(s => {
         if (s.DevicePackages.TryGetValue(device.DevicePath, out var ids)) ids.Remove(id);
         if (s.Bindings.GetValueOrDefault(device.DevicePath) == id) s.Bindings.Remove(device.DevicePath);
+        if (s.VerifiedControlProfiles.GetValueOrDefault(device.DevicePath) == id) s.VerifiedControlProfiles.Remove(device.DevicePath);
     });
+    public static HashSet<string>? VerifiedControls(MonitorData device)
+    {
+        var id = State().VerifiedControlProfiles.GetValueOrDefault(device.DevicePath);
+        var package = id == null ? null : ForDevice(device).FirstOrDefault(p => p.Id == id);
+        return package?.Controls.Where(f => f.Writable && f.Verification == "write-confirmed").Select(f => f.Id).ToHashSet();
+    }
     public static void Choose(MonitorData device, string feature, string provider) => Mutate(s => s.FeatureRoutes[device.DevicePath + "|" + feature] = provider);
     private static void Mutate(Action<PackageState> mutation)
     {

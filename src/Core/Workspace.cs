@@ -9,8 +9,19 @@ public static class Library
     public static void Save<T>(string kind, string id, T value)
     {
         if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("资料 id 无效");
-        string path = Path.Combine(Folder(kind), id + ".json"), stage = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        File.WriteAllText(stage, JsonSerializer.Serialize(value, Packages.Json)); File.Move(stage, path, true);
+        SaveFile(Path.Combine(Folder(kind), id + ".json"), value);
+    }
+    internal static void SaveFile<T>(string path, T value)
+    {
+        string stage = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try {
+            File.WriteAllText(stage, JsonSerializer.Serialize(value, Packages.Json));
+            for (int attempt = 0; ; attempt++) {
+                try { File.Move(stage, path, true); break; }
+                catch (IOException ex) when (attempt < 5 && (ex.HResult & 0xffff) is 32 or 33) { Thread.Sleep(30 << attempt); }
+                catch (UnauthorizedAccessException) when (attempt < 5 && File.Exists(path) && !File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly)) { Thread.Sleep(30 << attempt); }
+            }
+        } finally { if (File.Exists(stage)) File.Delete(stage); }
     }
     public static List<T> All<T>(string kind)
     {
@@ -45,6 +56,7 @@ public sealed class Reading
         string? id = rule?.Values.FirstOrDefault(x => x.Value == Result.Current).Key;
         if (f.Id == "mccs-version") return $"MCCS {Result.Current >> 8}.{Result.Current & 255}";
         if (id != null) return rule!.Labels.GetValueOrDefault(id, id);
+        if (VcpRecognition.Display(f, Result) is { } recognized) return recognized;
         if (f.ValueType == "boolean" && Result.Current is 0 or 1) return Result.Current == 0 ? "关闭" : "开启";
         return f.ValueType is "enum" or "status" ? "未识别状态（编码 " + Result.Current + "）" : Result.Current + (f.Unit.Length == 0 ? "" : " " + f.Unit);
     }
@@ -79,7 +91,7 @@ public static class Comparison
         foreach (string id in a.Readings.Select(r => r.Capability.Definition.Id).Union(b.Readings.Select(r => r.Capability.Definition.Id)))
         {
             var x = a.Readings.SingleOrDefault(r => r.Capability.Definition.Id == id); var y = b.Readings.SingleOrDefault(r => r.Capability.Definition.Id == id);
-            if (x == null || y == null || x.Result.Status != y.Result.Status || x.Result.Current != y.Result.Current || x.Result.Maximum != y.Result.Maximum || x.Result.Text != y.Result.Text || x.Capability.Hash != y.Capability.Hash)
+            if (x == null || y == null || x.Result.Status != y.Result.Status || x.Result.Current != y.Result.Current || x.Result.Maximum != y.Result.Maximum || x.Result.Text != y.Result.Text || !DisplayWorkspace.SameCapability(x.Capability, y.Capability))
                 result.Add(new() { Feature = y?.Capability.Definition.Name ?? x!.Capability.Definition.Name, Before = x?.Display(a.Device.WindowsHdrEnabled) ?? "未采集", After = y?.Display(b.Device.WindowsHdrEnabled) ?? "未采集", Evidence = $"范围 {x?.Result.Maximum} → {y?.Result.Maximum}；状态 {x?.Result.Status ?? "缺失"} → {y?.Result.Status ?? "缺失"}；提供者 {x?.Capability.Provider} → {y?.Capability.Provider}" });
         }
         if (a.Device.WindowsHdrEnabled != b.Device.WindowsHdrEnabled) result.Add(new() { Feature = "Windows HDR（系统状态）", Before = a.Device.Hdr, After = b.Device.Hdr, Evidence = "条件发生变化，不能直接将关联值命名为 HDR" });
@@ -269,14 +281,14 @@ public sealed partial class DisplayWorkspace(IDisplayBackend backend)
     public static Preset Recovery(Operation op, Snapshot now)
     {
         var preset = new Preset { Name = "恢复 " + op.Name, DevicePath = now.Device.DevicePath };
-        if (op.Before.Device.DevicePath != now.Device.DevicePath) throw new InvalidOperationException("恢复设备不匹配");
+        if (!HardwareReports.SameDevice(op.Before.Device, now.Device) || !now.Complete) throw new InvalidOperationException("恢复设备不匹配或核查未完成");
         foreach (var request in op.Requests) {
             var result = op.Results.SingleOrDefault(x => x.RequestId == request.RequestId);
             if (result?.Confirmed != true) continue;
             var old = op.Before.Readings.SingleOrDefault(r => r.Capability.Definition.Id == request.ControlId);
             var current = now.Readings.SingleOrDefault(r => r.Capability.Definition.Id == request.ControlId);
             if (old == null || old.Result.Status != "ok" || current?.Result.Status != "ok") throw new InvalidOperationException("恢复范围存在缺失读数，请先核查");
-            if (current.Capability.Hash != old.Capability.Hash || current.Result.Current != result.Current || current.Result.Maximum != result.Maximum || now.Device.WindowsHdrEnabled != op.After.Device.WindowsHdrEnabled) throw new InvalidOperationException("恢复冲突：当前状态/条件/适配包已变化，不覆盖外部调整");
+            if (!SameCapability(current.Capability, old.Capability) || current.Result.Current != result.Current || current.Result.Maximum != result.Maximum || now.Device.WindowsHdrEnabled != op.After.Device.WindowsHdrEnabled) throw new InvalidOperationException("恢复冲突：当前状态/条件/适配包已变化，不覆盖外部调整");
             preset.Items.Add(new() { FeatureId = request.ControlId, Value = old.Semantic(op.Before.Device.WindowsHdrEnabled), Provider = old.Capability.Provider, Hash = old.Capability.Hash });
         }
         if (preset.Items.Count == 0) throw new InvalidOperationException("没有可确认恢复的项目；先重新读取核查");

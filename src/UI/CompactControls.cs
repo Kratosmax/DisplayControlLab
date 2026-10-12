@@ -23,8 +23,7 @@ public partial class WorkspaceWindow
         title.Children.Clear();
         name.Text = feature.Id switch { "hdr-preset" => "HDR 预设", "dynamic-contrast" => "DCR", _ => feature.Name };
         name.FontSize = 13; name.TextWrapping = TextWrapping.NoWrap; name.TextTrimming = TextTrimming.CharacterEllipsis; name.ToolTip = feature.Name; name.Margin = new Thickness(0, 0, 8, 0);
-        help.Content = "?"; help.Width = 24; help.MinHeight = 28; help.Padding = new Thickness(2); help.Margin = new Thickness(6, 0, 0, 0);
-        help.Click += (_, _) => help.Content = "?";
+        help.Width = 24; help.MinHeight = 28; help.Padding = new Thickness(2); help.Margin = new Thickness(6, 0, 0, 0);
         more.Visibility = expandedCompactDetails.Contains(feature.Id) ? Visibility.Visible : Visibility.Collapsed;
         more.Margin = new Thickness(0, 8, 0, 0);
         var menu = new Button { Content = "⋯", Width = 24, MinHeight = 28, Padding = new Thickness(2), Margin = new Thickness(2, 0, 0, 0), ToolTip = "更多：来源、适配说明、收藏与研究" };

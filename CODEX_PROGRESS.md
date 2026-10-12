@@ -1,66 +1,50 @@
 # DisplayControlLab 接续状态
 
-最后校准：2026-10-11。版本源 Directory.Build.props：0.3.1，.NET 8 / WPF / Windows x64。origin 为 https://github.com/Kratosmax/DisplayControlLab.git，main；本次重构基线 fbc8b878434aa20684ea7de60d35be2a39623c2e。此前用户授权的四包发布、更新与网络代理工作已完成。0.3.1已发布并完成线上独立验签、哈希和真实主程序更新检查/下载预检，发行代码提交f0c147c3b9daff388c83f7b06eb84aefb8a9615f，标签v0.3.1。本轮从49d28becb2b006bd98c9f3e33c0c06bace92532e接入用户确认的图标；用户明确要求推送、不重新打包。版本与既有Release保持不变，没有使用子代理。
+最后校准：2026-10-12。现有仓库 Kratosmax/DisplayControlLab，remote git@github.com:Kratosmax/DisplayControlLab.git；main 开发基线53c4953与origin/main一致。用户已明确授权记录进度、推送源码并发布新版包体。本次为新增完整功能，Directory.Build.props升级0.4.0，计划标签v0.4.0，四种包与两通道签名清单。当前发布进行中，尚未推送/发布；最后联网核验正式latest仍为v0.3.1。正式签名由已有GitHub Secret在受控发布工作流完成，不修改公钥，不把私钥落入源码。
 
-## 已确认图标与本轮验证
+## 当前产品与本次范围
 
-用户确认前屏A2六色色环、后屏B2五色色谱及黑白分区、B双屏叠层。唯一资产在assets/branding：displaycontrol.svg、displaycontrol.png、displaycontrol.ico，说明在该目录README.md。ICO含16/20/24/32/40/48/64/96/128/256十档。
+.NET 8 / WPF / Windows x64。Reader/Controller独立进程，共享资料，硬件命令由独立worker执行。读取器启动/换屏不预读；控制器定向刷新、缓存、方案与历史保留。读取器以一键检测为主，三轮读取与记录自动保存；手动菜单变化对比折叠，高级设备/适配包/协议工作台保留，旧手动快照配对与分段实验UI已删除，旧数据模型及文件兼容。
 
-本轮完整变更：上述四个资产/说明；src/Controller/DisplayControl.Controller.csproj、src/Reader/DisplayControl.Reader.csproj、src/Updater/DisplayControl.Updater.csproj接入exe图标；src/UI/DisplayControl.UI.csproj嵌入共享图像资源；src/UI/WorkspaceWindow.cs为窗口、弹窗及页头接入图标；build/suite.iss为下一次安装器构建指定同一ICO；README.md展示图标；本页更新接续信息。
+用户最终三条规则：所有可靠可恢复写入定义都进入试写；失败/未测/高风险有原因、手动测试或重试；控制包只保留实际通过项。FeatureWriteTests统一数值/枚举/布尔的SET、独立GET、恢复检查，覆盖音量及型号协议，不限图像白名单。新标准数值项有声明/版本/范围依据可直接草稿试写，不需先安装只读包。每项TestReason/Probes/TestedValues保存结果、原因、通过档位；旧作者write-confirmed声明与仅read-observed不冒充本轮实测。
 
-2026-10-11实际运行dotnet build DisplayControlLab.sln -c Release -m:1，0警告/0错误；控制器--ui-test temp/validation/branding/controller，81项通过；读取器--capture temp/validation/branding/reader.png check --simulation，真实WPF离屏渲染成功。已查看页面渲染，页头图标无裁切。测试使用模拟数据、隔离资料，不Show、不抢焦点、不写硬件。Windows资源只读验证确认三个exe的十个图标帧与源ICO逐字节一致，证据在本机temp/validation/branding/icon-verification.json；ICO SHA256：3cc0a7bc540605bd1315ec97fdbcb8d851c404b06d797b3c54de7fc52ea1e0be。
+FeatureTestPanel每行测试/重试入口提供自动重试、手动选值、重新读取；成功保存开放，失败撤销可写验证。输入源/电源/OSD/HDR等打断使用项需手动选值确认；恢复出厂等不可撤销命令禁止GET/SET并在列表留原因。无可靠协议/可恢复原值时需补协议，不猜SET。色温/画面预设复用ImageProbe专用联动恢复，RGB不是色度测量，不猜具体K值。未知私有码及无协议项不能因为手动按钮就强写。
 
-按用户要求未执行打包、未改版本、未创建标签或Release；安装器此次仅校准源码引用，未重新编译或安装验收。main工作流会生成预览包，因此本轮提交使用[skip ci]避免云端重新打包，本地构建及UI验证已完成。实际系统标题栏/任务栏和Explorer图标缓存未前台验证。后续正式包将在下一次经用户授权的发布中纳入图标，本轮不覆盖既有0.3.1资产。推送完成状态以Git远程main与本地HEAD相等为准。
+Package只含本机写入/独立回读/恢复通过、读取有效、不受未恢复联动影响的Writable/write-confirmed项，无失败/未知/未测controls或menuHints；枚举只开放通过档位，未通过依赖不能夹带，零通过不生成空包。PackageState.VerifiedControlProfiles控制应用/导入成功包后的控制器展示名单，避免内置或旧包未知项回流，Reader保留所有研究记录；Detach取消名单。adapter apiVersion=1保持兼容。
 
-## 接手校准
+恢复失败停止后续试写但允许应用无关通过项；恢复项、差异、联动/依赖受限，证据不足不开放。RecoveryBaseline/RecoveryObserved保留，旧色温完整Operation.After可补证据。只读重测继承旧原基线，不把测试值当新原值，多基线冲突保持限制；恢复确认前不再试写。橙色行点击后为简短操作卡及就地只读检查，编码/堆栈默认折叠。AI提示词自包含项目/契约/证据，直接查看复制，保存可选且脱敏。
 
-先读本页、README、版本源、相关源码和 docs/UPDATE_VALIDATION.md，再核对 git status --short、git log -3 --oneline、git remote -v、gh release list --repo Kratosmax/DisplayControlLab。原厂商研究、实验及回滚资料在项目 temp，不提交或删除。仓库级身份按技能使用小火车 <kratosthemax@gmail.com>，不改全局配置。
+80条扩展标准及4条品牌候选位于config/vcp-recognition.json并嵌入Core。型号/第三方定义优先；厂商候选保持只读。Dell复合输入源仅解释回读，AOC色温候选不猜K值，MSI缺资料不伪造。能力声明支持ushort枚举（Dell EA FE00 FE01），控制码仍byte。新增试写功能不绕过HDR互锁、白名单、来源Hash、设备身份、当前模式和取消时限时恢复。
 
-## 当前产品
+## 本次累计修改文件（39项）
 
-控制器/读取器两个薄入口，共享 Core 与 UI。控制器负责操作、定向回读、方案和历史；读取器负责设备检查、快照、实验与协议工作台。通用 DDC 内置，协议/驱动插件由用户编辑、生成、安装；每台默认一个型号包，按功能选择通道。详细视图与两列单行紧凑视图共存，偏好持久化；两设备启动预热、写队列与意图合并、稳定顺序和滚动、功能帮助均已实现。
+README.md、CODEX_PROGRESS.md、Directory.Build.props、RELEASE_NOTES_CURRENT.md、build/package.ps1、config/vcp-recognition.json、docs/USER_GUIDE.md、docs/READER_WORKFLOW_VALIDATION.md、docs/READ_WRITE_REVIEW.md、docs/VCP_RECOGNITION.md、docs/releases/v0.4.0.md、.github/workflows/release.yml、build/verify-updates.py、src/Core/DisplayControl.Core.csproj、src/Core/HdrSafety.cs、src/Core/Models.cs、src/Core/Native.cs、src/Core/Packages.cs、src/Core/Routing.cs、src/Core/SimulatedDisplayBackend.cs、src/Core/TargetedControl.cs、src/Core/Workspace.cs、src/Core/ReaderSurvey.cs、src/Core/VcpRecognition.cs、src/Core/ImageProbe.cs、src/Core/FeatureWriteTests.cs、src/UI/CompactControls.cs、src/UI/FeatureHelp.cs、src/UI/ResearchPages.cs、src/UI/ToolHost.cs、src/UI/WorkspaceWindow.cs、src/UI/GuidedReader.cs、src/UI/ProtocolPromptWindow.cs、src/UI/RecoveryGuide.cs、src/UI/FeatureTestPanel.cs、tests/Platform/ProductTests.cs、tests/Platform/Program.cs、tests/Platform/ReaderSurveyTests.cs、tests/Platform/VcpRecognitionTests.cs
 
-主屏 AOC Q27G4ZMN / AOCB411 包 1.5.0；副屏 MSI G273Q / MSI3CA8 包 1.1.0。标准功能走 Windows DDC，已核实私有功能目前走 AMD ADL，未实现 NVIDIA/Intel 私有通道。协议包不随软件更新强制覆盖。实际范围与缺口见 docs/OSD_CONTROL_VALIDATION.md：帧计数左侧两档 SET3 回读4、SET4 回读3，暂禁用；区域调光/色域/Adaptive-Sync 缺有效协议，游戏模式/比例缺完整联动恢复验证，保持只读。不得猜未知 SET。
+## 验证与待办
 
-HDR 开启/未知时禁止已知冲突功能；进入前保存色温，确认退出后恢复。系统 HDR 变化等待连接稳定与重载，不重发预设。写入只回读目标与声明联动，禁止退回全量扫描。MSI 内置标准亮度允许最多两次有条件 SET，其他操作不套用。普通更新测试不得写实机或切 HDR。
+发布前开发预览0.3.1已完成核心260项、Reader121/Controller119项WPF离屏UI；实际验证失败重试→成功落盘导出、手动输入源恢复、型号数值/枚举逐档、新标准项直接草稿、依赖和控制名单。证据temp/validation/write-contract。预览ZIP992891字节，SHA256 b036f639f920f54fd3098681e7a6a347edf3bb008818d77524620aa0ab8265e8；仅历史开发产物，不作为0.4.0正式包。源码/包五程序集及核心测试二进制哈希一致。0.4.0本地构建0警告/0错误、核心260项、Reader121/Controller119项UI和Full/Lite各51项更新专项已通过；四种本地包已生成。本地安装器验收检测到现有Lite安装记录后安全停止，未覆盖用户安装；原生安装/卸载待干净CI环境验证。本机与云端产物不混淆。发布工作流升级门禁改用真正上一正式版原始ZIP，不修改旧二进制或版本身份，校验其SHA256后执行两通道完整升级。
 
-## 更新与发布模块
-
-src/Core/Updates：安装身份、文件租约、签名清单（公告也参与签名）、双层网络路由、大小/停滞限制、下载暂存、真实程序集/ZIP/路径/通道预检、事务备份替换与启动恢复。src/Updater 在安装目录外运行，核实主进程创建时间、最多等待60秒及两工具文件租约，无强杀。软件旧文件按安装清单清理，用户非软件文件保留。用户资料仍在 LOCALAPPDATA/DisplayControlLab，测试通过 DISPLAYCONTROL_DATA 隔离到项目 temp。
-
-src/UI/UpdatePages.cs 复用原主题、卡片、按钮与下拉，位于统一设置页。后台检查不激活窗口，未保存网络值可临时手动检查，保存后才影响后台。提供当前/目标版本、签名公告、大小、阶段/线路、进度、稍后/跳过/取消和手动下载。显示器操作未完成拒绝更新交接，草稿保存后退出。Full/Lite 禁止跨通道；缺安装身份的开发目录只允许手动下载。0.2.0 正式版无更新器，必须手动过渡一次，不能冒称旧版自动升级成功。
-
-build/package.ps1 输出四包及身份；build/ReleaseTools 在受控签名环境生成 update.json、update-lite.json、update-full.json 并核验实际 ZIP。公钥在 UpdateTrust.cs。私钥仅存 GitHub 仓库 Secret，本机临时恢复副本用 Windows 当前用户保护，不得输出、提交或入包。release.yml 标签触发四包构建、核心/UI/两通道验证、签名与发布；build.yml 负责 main/PR。当前版本说明仅 RELEASE_NOTES_CURRENT.md，历史多版本说明不可直接发布。
-
-## 验证与证据
-
-此前主屏14次真实 SET、19项状态恢复证据在 temp/validation/game-controls，不当本轮更新测试。此前核心172项、UI68项；本轮各阶段核心172项、更新专项每通道51项与 UI81项已执行。正式候选最终结果以 temp/validation/updates 与 docs/UPDATE_VALIDATION.md 收尾核准，不混作云端产物的结果。
+当前下一步：提交推送main及v0.4.0→等待CI构建签名发布→独立核对线上八资产及哈希/清单/正文→上一正式版0.3.1原始客户端两通道升级验证→更新本页发布证据并同步GitHub。无权限决策阻塞；发布授权来自当前用户本轮指令。0.2.0无更新器需手动过渡，0.3.1真实原始客户端用于升级验收，不能重编冒充旧版。
 
 ```powershell
-dotnet build DisplayControlLab.sln -c Release -m:1
-& tests/Platform/bin/Release/net8.0-windows/DisplayControl.Platform.Tests.exe . temp/validation/platform
-$p = Start-Process src/Controller/bin/Release/net8.0-windows/DisplayControl.Controller.exe -ArgumentList '--ui-test','temp/validation/ui' -WindowStyle Hidden -Wait -PassThru
-./build/package.ps1 -LiteOnly -PreviewOnly
+dotnet build DisplayControlLab.sln -c Release -m:1 -p:NuGetAudit=false
+& tests/Platform/bin/Release/net8.0-windows/DisplayControl.Platform.Tests.exe . temp/validation/release-0.4.0/platform
+$p = Start-Process src/Reader/bin/Release/net8.0-windows/DisplayControl.Reader.exe -ArgumentList '--ui-test','temp/validation/release-0.4.0/reader' -WindowStyle Hidden -Wait -PassThru
+$p = Start-Process src/Controller/bin/Release/net8.0-windows/DisplayControl.Controller.exe -ArgumentList '--ui-test','temp/validation/release-0.4.0/controller' -WindowStyle Hidden -Wait -PassThru
 ./build/package.ps1
-dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/updates temp/release/DisplayControlLab-0.3.1-Lite.zip Lite
+dotnet run --project tests/Updates/DisplayControl.Update.Tests.csproj -c Release -- . temp/validation/release-0.4.0/updates-Lite temp/release/DisplayControlLab-0.4.0-Lite.zip Lite
 ```
 
-WPF 使用原生离屏宿主，不能用 Playwright 驱动；不 Show、不抢焦点。打包需要 Inno Setup 6，已找到当前用户安装。下载与生成缓存放项目 temp。实际鼠标下拉、跨屏 DPI、其他 Windows 版本及全部硬件固件未全面验证。用户没有自行运行测试命令记录。
+所有普通验证DISPLAYCONTROL_DATA隔离到项目temp，不Show/抢焦点、不读写实机；Playwright不驱动WPF，使用原生离屏渲染并人工查看。沙盒IPC测试历史失败，正常用户上下文同测试通过。用户已运行预览并反馈Dell记录/截图，未提供自行运行测试命令。真实固件私有协议/联动、断连后的自动恢复、所有显卡/Windows/跨屏DPI未全测；“回读通过”不是画面效果或全模式证明。
 
-## 发行与当前待办
+## 稳定约束与关键入口
 
-0.3.1已完成本次目标。Release：https://github.com/Kratosmax/DisplayControlLab/releases/tag/v0.3.1 。发行Actions 38139976095成功；main CI 38139973071成功。Full/Lite Setup与ZIP、update.json/update-lite.json/update-full.json、SHA256SUMS共八资产齐全，latest指向v0.3.1。
+用户资料在LOCALAPPDATA/DisplayControlLab；Library原子保存短暂占用有界重试，真实拒绝不绕过。旧数据/适配包和历史temp不删除。当前AOC Q27G4ZMN/B411包1.5.0、MSI G273Q包1.1.0随包可手动导入，私有DDC主要AMD ADL，未实现NVIDIA/Intel私有通道。既有实机缺口见docs/OSD_CONTROL_VALIDATION.md：帧计数左侧两档编码矛盾禁用；局部调光/色域/Adaptive-Sync等无可靠协议不猜写入。控制器系统HDR与显示器HDR不同，HDR未知/开启阻止冲突图像设置，有记录才恢复颜色。
 
-本地与云端：172核心、两通道各51更新专项、81离屏UI，签名实际ZIP，外部更新器交接/替换/CLI重启/启动清理，两个安装器静默安装/卸载均通过。线上八资产已独立下载，大小与GitHub digest/SHA256SUMS一致；两个通道的发行控制器入口真实获取latest清单、验签/版本与通道、下载更新包及主程序预检均成功。验证仅使用temp隔离资料，未执行用户安装的软件替换，无硬件SET。直连较慢时，隔离验收采用用户PinNote已有前缀线路；未修改默认用户网络资料。证据在temp/validation/updates/online/verification.json、release-api.json与package-check.json。
+Updates模块负责安装身份、签名清单、URL前缀/HTTP代理、下载暂存、真实程序集/ZIP预检和事务回滚；Updater在安装目录外等待两个工具退出，不强杀。Full/Lite不跨通道，用户非程序文件与资料保留。build/package.ps1串行publish，四包；ReleaseTools只在受控签名环境生成三清单。release.yml标签触发完整发布，build.yml负责main/PR。RELEASE_NOTES_CURRENT.md只含当前版本，docs/releases保存历史，不能把历史正文整份发布。
 
-0.2.0实际正式ZIP已检查，确无更新器，必须手动过渡一次。未来有更新器的上一正式版发布验证须使用其原始二进制，不以重编旧版或模拟旧身份替代。当前不存在其他已授权未完成事项。协议缺口继续按上方边界保留；等待用户后续需求，不从未适配清单自行扩大范围。
+仓库Git身份小火车 <kratosthemax@gmail.com>，不改全局配置；ownership仅用git -c safe.directory。保留图标assets/branding及所有入口同一ICO。temp、日志、真实用户资料、密钥不入Git。不复制/安装全局工具到私有目录。回滚开发基线53c4953及此前保留预览；发布后不能覆盖同版本资产，发现发行缺陷递增版本。
 
-## 维护
+## 接续规则
 
-收尾更新真实提交/标签/Release/Actions状态、完整修改清单、重跑命令与测试缺口。历史实验、截图、临时受保护密钥缓存和用户日志不入 Git。跨设备接续仅在文档与源码提交并推送后成立。未来发布权限按届时用户请求核对，本页不自动扩张授权。
-
-本轮实际变更：src/Core/Updates 下6个模块、src/Updater、src/UI/UpdatePages.cs、WorkspaceWindow.cs、ToolHost.cs；tests/Updates；build/package.ps1、suite.iss、ReleaseTools、verify-updates.py、verify-installers.py；Directory.Build.props、DisplayControlLab.sln、两工作流、README、USER_GUIDE、UPDATE_VALIDATION、RELEASE_NOTES_CURRENT、docs/releases/v0.3.1.md及本页。累计重构清单以最终Git提交为准，temp/validation/updates/package-check.json与changed-files.json保存本机哈希。主屏包与协议研究本轮未改；更新测试无硬件SET。
-
-v0.3.0候选Actions 38139324153在交接检验脚本初始化目录时报错，发布步骤被跳过，无Release。已补输出目录并递增0.3.1；保留原标签，不重打。已推送重构提交b7dce437a191e52fcd63089f130757a55cfd01ca；main CI 38139150103成功。0.3.1发布与线上复核已通过。
-
-线上Lite ZIP大小571094字节，SHA256 084e201052dd047e4f1be8ea9b6c64987751c1d77a64bc2cf2559e3b54a0f9a8；其他资产校验和以Release的SHA256SUMS为准。v0.3.0失败候选无Release，旧标签保留作审计。当前源码/文档已推送，可以跨设备按本页继续。
+接手先读本页、README、相关源码、git status/log/remote、版本源及实际Release。事实以最新源码/测试/线上核验为准。后续发布授权需按当次用户请求核对，本页不扩张授权。收尾更新实际测试、提交/标签/Release/Actions、剩余缺口与完整修改清单，只有文档源码推送成功后才能声称跨设备接续。

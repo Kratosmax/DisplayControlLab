@@ -274,13 +274,13 @@ public static partial class Packages
     public static PackageState State() => File.Exists(Path.Combine(Home, "state.json")) ? JsonSerializer.Deserialize<PackageState>(File.ReadAllText(Path.Combine(Home, "state.json")), Json) ?? new() : new();
     private static void SaveState(PackageState state)
     {
-        Directory.CreateDirectory(Home); var path = Path.Combine(Home, "state.json");
-        string stage = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        File.WriteAllText(stage, JsonSerializer.Serialize(state, Json)); File.Move(stage, path, true);
+        Directory.CreateDirectory(Home);
+        Library.SaveFile(Path.Combine(Home, "state.json"), state);
     }
 }
 public sealed class PackageState
 {
+    public Dictionary<string, string> VerifiedControlProfiles { get; set; } = [];
     public Dictionary<string, string> Bindings { get; set; } = [];
     public HashSet<string> Disabled { get; set; } = [];
     public Dictionary<string, List<string>> DevicePackages { get; set; } = [];

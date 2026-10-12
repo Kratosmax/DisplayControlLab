@@ -51,7 +51,7 @@ public static class ToolHost
             if (capture || test) {
                 int exit = 0;
                 app.Dispatcher.InvokeAsync(async () => {
-                    try { await window.Initialize(); if (test) await window.RunUiTests(args[1]); else { window.Capture(args[1], args.Length > 2 && !args[2].StartsWith("--") ? args[2] : reader ? "check" : "control", 1480, 900, 1); } }
+                    try { await window.Initialize(); if (test) await window.RunUiTests(args[1]); else { window.Capture(args[1], args.Length > 2 && !args[2].StartsWith("--") ? args[2] : reader ? "guided" : "control", 1480, 900, 1); } }
                     catch (Exception ex) { exit = 1; string dir = test ? args[1] : Path.GetDirectoryName(args[1])!; Directory.CreateDirectory(dir); File.WriteAllText(Path.Combine(dir, "ui-error.txt"), ex.ToString()); }
                     finally { app.Shutdown(exit); }
                 });
@@ -71,13 +71,13 @@ public partial class WorkspaceWindow
 {
     void SwitchTool(bool targetReader)
     {
-        if (targetReader == reader) return; OpenContext(targetReader ? "check" : "control", focusedFeature ?? "", targetReader);
+        if (targetReader == reader) return; OpenContext(targetReader ? "guided" : "control", focusedFeature ?? "", targetReader);
     }
     void OpenContext(string targetPage, string feature, bool? targetReader = null)
     {
         if (device == null) { Say("先选择设备"); return; }
         var c = snapshot?.Readings.FirstOrDefault(r => r.Capability.Definition.Id == feature)?.Capability;
-        var context = new NavigationContext { Device = Library.Copy(device), FeatureId = feature, Provider = c?.Provider ?? "", Hash = c?.Hash ?? "", Page = targetPage, SessionId = experiment?.Id };
+        var context = new NavigationContext { Device = Library.Copy(device), FeatureId = feature, Provider = c?.Provider ?? "", Hash = c?.Hash ?? "", Page = targetPage };
         Library.Save("contexts", context.Id, context);
         bool tool = targetReader ?? true;
         if (tool == reader) { _ = AcceptContext(context.Id); return; }
@@ -94,7 +94,7 @@ public partial class WorkspaceWindow
             var list = devices.ItemsSource as List<MonitorData> ?? await workspace.Backend.Devices(CancellationToken.None);
             var match = list.SingleOrDefault(d => HardwareReports.SameDevice(d, context.Device));
             if (match == null) { devices.SelectedItem = null; snapshot = null; ShowPage(); banner.Text = "目标设备已离线或连接变化：" + context.Device.Name + "。不会改选第一台设备。"; return; }
-            suppressDeviceChange = true; devices.SelectedItem = match; suppressDeviceChange = false; snapshot = deviceSnapshots.GetValueOrDefault(match.DevicePath); page = context.Page; if (context.SessionId != null && page == "experiments") experiment = Library.Get<Experiment>("experiments", context.SessionId); ShowPage();
+            suppressDeviceChange = true; devices.SelectedItem = match; suppressDeviceChange = false; snapshot = deviceSnapshots.GetValueOrDefault(match.DevicePath); Navigate(context.Page);
             if (active == null && (snapshot == null || context.Page == "check")) await Run(t => RefreshValues(t, context.FeatureId.Length > 0 ? new[] { context.FeatureId } : null));
             if (context.Hash.Length > 0 && workspace.Backend.Capabilities(match).All(c => c.Definition.Id != context.FeatureId || c.Hash != context.Hash)) banner.Text = "上下文中的适配包已变化或缺失，请先核对来源。";
             if (page == "control" && focusedFeature.Length > 0) { group = workspace.Backend.Capabilities(match).FirstOrDefault(c => c.Definition.Id == focusedFeature)?.Definition.Group ?? "all"; ShowPage(); }
@@ -111,6 +111,10 @@ public partial class WorkspaceWindow
     {
         Directory.CreateDirectory(directory); var passed = new List<string>();
         void Check(bool condition, string name) { if (!condition) throw new Exception(name); passed.Add(name); }
+        if (reader) {
+            Check(((SimulatedDisplayBackend)workspace.Backend).Requests.Count == 0 && snapshot == null, "读取器启动只识别设备，不预读所有功能");
+            await Run(WarmDevices); // Load fixtures for the shared controller regression suite.
+        }
         Check(simulation && snapshot?.Readings.Count > 0, "真实页面加载模拟设备，未枚举硬件");
         Check(deviceSnapshots.Count == 2 && deviceSnapshots.Values.All(s => s.Readings.Count > 0), "启动预读两台设备，不等待切换才读取");
         var fixture = (SimulatedDisplayBackend)workspace.Backend;
@@ -157,6 +161,12 @@ public partial class WorkspaceWindow
         Check(((System.Windows.Controls.Border)FeatureSection(helpFeature).Children[1]).Visibility == Visibility.Visible, "页面重新渲染保留本次会话的说明展开状态");
         helpButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         Check(helpDetails.Visibility == Visibility.Collapsed && fixture.Requests.Count == helpRequestCount, "折叠说明不发送读取或写入请求");
+        var compactHelp = FeatureSection(helpFeature, true);
+        var compactHelpButton = (System.Windows.Controls.Button)((System.Windows.Controls.Grid)compactHelp.Children[0]).Children[1];
+        compactHelpButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        Check(Equals(compactHelpButton.Content, "?") && ((System.Windows.Controls.Border)compactHelp.Children[1]).Visibility == Visibility.Visible,
+            "紧凑帮助复用同一展开逻辑，按钮不变成长文字溢出");
+        compactHelpButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         helpFeature.HelpText = "此型号的专属帮助";
         Check(FeatureHelp.For(helpFeature) == "此型号的专属帮助" && helpFeature.Description == "当前仅可读取", "适配包帮助覆盖通用解释，不覆盖适配限制");
         Check(DeviceControl.Standard.All(f => !FeatureHelp.For(f).Contains("自定义功能")), "全部内置标准功能都有通俗说明");
@@ -169,16 +179,22 @@ public partial class WorkspaceWindow
         var mismatchCard = FeatureCard(brightness, true, true);
         Check(numericEditors.Last().Slider.IsEnabled, "写入未确认但当前值已核实的亮度仍可继续调节");
         snapshot.Readings[snapshot.Readings.IndexOf(knownMismatch)] = normalReading;
+        var differentSource = Library.Copy(brightness); differentSource.Provider = "new.provider";
+        var staleCard = FeatureCard(differentSource, true, true);
+        Check(!Descendants(staleCard).OfType<System.Windows.Controls.Slider>().Any()
+            && Descendants(staleCard).OfType<System.Windows.Controls.TextBlock>().All(b => !b.Text.StartsWith("上次确认值")), "更换来源后不显示旧来源的当前数值或缓存滑块");
         var op = Library.All<Operation>("operations")[0]; var recovery = DisplayWorkspace.Recovery(op, snapshot); var restored = await workspace.Apply(recovery.Name, snapshot, DisplayWorkspace.Preflight(recovery, snapshot), CancellationToken.None); snapshot = restored.After; Check(snapshot.Readings.Single(r => r.Capability.Definition.Id == "brightness").Result.Current == 85, "持久化操作核查与恢复");
-        var save = Library.Copy(snapshot); save.Name = "UI 测试基线"; Library.Save("snapshots", save.Id, save);
-        experiment = new() { Question = "HDR A→B→A 模拟实验", Device = device!, FeatureIds = ["brightness", "hdr-preset"] };
-        await CaptureSegment("基线 A", CancellationToken.None); ((SimulatedDisplayBackend)workspace.Backend).Values["hdr-preset"] = 3; await CaptureSegment("游戏 B", CancellationToken.None); ((SimulatedDisplayBackend)workspace.Backend).Values["hdr-preset"] = 0; await CaptureSegment("恢复 A", CancellationToken.None);
-        var reopened = Library.Get<Experiment>("experiments", experiment.Id); Check(reopened.Segments.Count == 3 && reopened.Compare(0, 1).Count == 1 && reopened.Compare(0, 2).Count == 0, "实验自动暂停、两轮采样、落盘重开与 A→B→A 对比");
-        experiment.Segments[1].Name = "修订后的 B"; Library.Save("experiments", experiment.Id, experiment); Check(Library.Get<Experiment>("experiments", experiment.Id).Segments[1].Name == "修订后的 B", "标记修订不丢样本");
-        using (var cancellation = new CancellationTokenSource(45)) {
-            try { await CaptureSegment("连续段取消测试", cancellation.Token, true); } catch (OperationCanceledException) { }
-            Check(Library.Get<Experiment>("experiments", experiment.Id).Segments.Last().Rounds.Any(r => !r.Complete), "连续采集取消保留未完成轮，不作为完整稳定数据");
-        }
+        selectedPreset = new() { Name = "缓存核查", DevicePath = device!.DevicePath, Items = [new() { FeatureId = "brightness", Value = "80" }] };
+        presetPlan = DisplayWorkspace.Preflight(selectedPreset, snapshot); presetPlanId = selectedPreset.Id;
+        Navigate("presets");
+        var applyPreset = Descendants(body).OfType<System.Windows.Controls.Button>().Single(b => Equals(b.Content, "应用已预检方案"));
+        applyPreset.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        for (int i = 0; active != null && i < 3000; i++) await Task.Delay(10);
+        Check(active == null && snapshot!.Readings.Single(r => r.Capability.Definition.Id == "brightness").Result.Current == 80
+            && deviceSnapshots[device.DevicePath].Readings.Single(r => r.Capability.Definition.Id == "brightness").Result.Current == 80,
+            "方案应用同步页面与设备缓存，切屏不会退回旧数值");
+        fixture.Values["brightness"] = 85; StoreSnapshot(original, true);
+        await RunGuidedReaderTests(directory, Check);
         selectedPreset = new() { Name = "办公", DevicePath = device!.DevicePath, Items = [new() { FeatureId = "brightness", Value = "80" }] }; Library.Save("presets", selectedPreset.Id, selectedPreset); presetPlan = DisplayWorkspace.Preflight(selectedPreset, snapshot); presetPlanId = selectedPreset.Id;
         NewDraft();
         var draftRoundtrip = Packages.Parse(JsonSerializer.Serialize(draft, Packages.Json));
@@ -264,7 +280,7 @@ public partial class WorkspaceWindow
         await changing;
         Check(snapshot!.Readings.Single(r => r.Capability.Definition.Id == "hdr-preset").Result.Status == "ok" && snapshot.Readings.Single(r => r.Capability.Definition.Id == "color-preset").Result.Status == "ok" && uiMessage.Contains("已重新读取"), "系统HDR后连续三轮失败仍能恢复且不被切换成功文案覆盖");
         Check(navigation.Children.OfType<System.Windows.Controls.Button>().All(b => (string)b.Tag != "workbench") || reader, "控制器导航不包含协议创作工作台");
-        foreach (string p in new[] { "control", "check", "snapshots", "experiments", "presets", "history", "packages", "workbench", "settings" }) {
+        foreach (string p in new[] { "control", "guided", "check", "presets", "history", "packages", "workbench", "settings" }) {
             Capture(Path.Combine(directory, p + ".png"), p, 1480, 900, 1); Check(File.Exists(Path.Combine(directory, p + ".png")), "真实 WPF 离屏渲染 " + p);
         }
         foreach (double dpi in new[] { 1.0, 1.25, 1.5, 2.0 }) Capture(Path.Combine(directory, $"control-min-{dpi}.png"), "control", 1040, 660, dpi);

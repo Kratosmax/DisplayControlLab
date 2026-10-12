@@ -41,7 +41,7 @@ public sealed class SimulatedDisplayBackend : IDisplayBackend
         if (Offline || request.ControlId == FailFeature) { result.Message = Offline ? "设备离线（模拟）" : "回读超时（模拟）"; return result; }
         var device = (await Devices(token)).Single(d => d.DevicePath == request.Device.DevicePath);
         if (request.Action == "system-hdr") { bool before = Hdr; Hdr = request.Value == "on"; return new() { RequestId = request.RequestId, Status = "ok", Sent = true, Confirmed = true, Before = before ? 1u : 0u, Current = Hdr ? 1u : 0u, Maximum = 1, Message = "系统 HDR 已切换（模拟）" }; }
-        var c = Capabilities(device).Single(c => c.Definition.Id == request.ControlId); var f = c.Definition;
+        var c = Capabilities(device).Single(c => c.Definition.Id == request.ControlId); var f = request.DraftPackage?.Controls.Single(x => x.Id == request.ControlId) ?? c.Definition;
         uint maximum = f.Id == "hdr-preset" ? Hdr ? 4u : 3u : f.Id == "low-blue-light" ? 4u : f.ValueType == "boolean" ? 1u : 100u;
         if (request.Action == "write") {
             try { HdrSafety.Check(HdrSafety.Policy(device), f.Id, id => new() { Status = FailFeature == id ? "error" : "ok", Current = Values.GetValueOrDefault(id) }); }

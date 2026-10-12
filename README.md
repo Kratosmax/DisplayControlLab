@@ -2,7 +2,7 @@
 
 <img src="assets/branding/displaycontrol.png" width="96" height="96" alt="DisplayControlLab：前屏色环与后屏色谱双屏图标" />
 
-Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置，私有协议与专用驱动插件由用户按需安装。当前版本 0.3.1。控制器与读取器共用工作区和用户资料。
+Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置，私有协议与专用驱动插件由用户按需安装。当前版本 0.4.0。控制器与读取器共用工作区和用户资料。
 
 ## 下载与升级
 
@@ -15,7 +15,7 @@ Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置
 | Full ZIP | 自带运行库，解压即用 |
 | Lite ZIP | 已有运行库，体积更小，解压运行 |
 
-0.2.0 没有自动更新器，需手动升级一次；旧版记录可在读取器只读导入。新版本在“设置与帮助”检查更新，启动后也可后台检查。显示当前/目标版本、经签名的公告、大小、下载阶段与线路，支持稍后、跳过、取消及手动下载。更新前退出另一工具并等待显示器操作完成；更新器不会强制关闭程序。用户资料及手动安装的适配包不会随软件更新被覆盖。
+0.2.0 没有自动更新器，需手动升级一次；旧版数据文件保留，新的读取记录可在读取器重开。新版本在“设置与帮助”检查更新，启动后也可后台检查。显示当前/目标版本、经签名的公告、大小、下载阶段与线路，支持稍后、跳过、取消及手动下载。更新前退出另一工具并等待显示器操作完成；更新器不会强制关闭程序。用户资料及手动安装的适配包不会随软件更新被覆盖。
 
 网络设置提供 GitHub URL 前缀线路和独立 HTTP 网络代理：优先级 0 禁用、10 最高，同级按列表顺序；直连不可删除但可禁用。支持 HTTPS/HTTP 前缀及无账号 HTTP 代理，不支持 SOCKS。可用未保存配置检查一次，保存后才影响后台检查。前缀代理会看到完整 GitHub URL；签名、哈希和包验证不会因为使用代理而跳过。
 
@@ -27,7 +27,7 @@ Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置
 
 “我的方案”选择项目保存、预检、应用。“操作历史”查看结果、重新核查和恢复已确认修改项；恢复冲突时拒绝覆盖外部调整。只恢复采集过的范围，不承诺撤销所有 OSD 联动。
 
-`DisplayControl.Reader.exe` 提供设备检查、快照比较、分段实验与协议工作台。控制器“在读取器研究”自动携带设备和功能上下文；检查、记录变化及协议创作在读取器完成。两个入口分别单实例，共用资料。
+`DisplayControl.Reader.exe` 自动发现功能并读取核验，对所有已有可靠、可恢复写入定义的数值、枚举和开关实际试写、独立回读并恢复，包括型号适配中的功能。每项显示通过结果或未测/失败原因，并提供单项重试、选值手动测试和重新读取。会打断使用的功能需手动选值确认；不可撤销命令禁止测试，未知协议不猜码。应用与导出只包含本机写入及恢复通过的功能，失败、未测、未知项留在读取器，控制器仅显示验证结果。色温/RGB对比不等于实测K值；完整记录自动保存，恢复未确认继续保留门禁。私有协议扩展可复制自包含AI提示词，日常控制无需AI。使用步骤见 [教程](docs/USER_GUIDE.md)，最新验收及边界见 [读取器验证](docs/READER_WORKFLOW_VALIDATION.md)。
 
 [使用教程](docs/USER_GUIDE.md) · [适配包格式与开发](docs/ADAPTERS.md) · [本地验收与边界](docs/PRODUCT_VALIDATION.md) · [本轮12项改进验证](docs/LIVE_CONTROL_VALIDATION.md) · [两屏适配研究](docs/MONITOR_ADAPTER_VALIDATION.md) · [实机证据](docs/CAPABILITY_VALIDATION.md) · [AI 接续](CODEX_PROGRESS.md)
 
@@ -35,7 +35,7 @@ Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置
 
 Windows x64；Lite 需要 .NET 8 Desktop Runtime x64，Full 包可包含运行环境。AMD 私有后端需要系统 AMD ADL 驱动。封闭驱动通过独立插件接入，前提是厂商接口可调用；进程隔离不是安全沙盒。
 
-资料统一保存到 `%LOCALAPPDATA%/DisplayControlLab`：adapters、state.json、snapshots、experiments、presets、operations、drafts、protocol-tests 和 logs。两个入口不在安装目录写资料。旧记录可从快照页只读导入，原文件不删除；测试通过 DISPLAYCONTROL_DATA 使用项目 temp 隔离目录。
+资料统一保存到 `%LOCALAPPDATA%/DisplayControlLab`：adapters、state.json、snapshots、experiments、presets、operations、drafts、protocol-tests、reader-surveys 和 logs。两个入口不在安装目录写资料。自动检测原始样本与恢复基线保存在 reader-surveys，已有数据文件不删除；测试通过 DISPLAYCONTROL_DATA 使用项目 temp 隔离目录。
 
 Windows HDR 与显示器 HDR 预设是不同状态。AOC/B411在显示器HDR开启或未知时阻止色温、对比度等冲突写入；软件进入前保存色温，退出确认后恢复，有记录才恢复。其他型号可由适配包声明HDR互锁。控制器提供系统 HDR 开关（需要 Windows/驱动支持专用 API），切换后等待连接稳定并自动重读设备状态和模式选项，最长约20秒有界恢复，期间暂停目标调节，不自动重发预设。没有自动抓取未知私有协议的承诺。区域调光等未取得有效协议的项目显示待适配；读取失败、条件锁定、只写和来源冲突分别处理。
 

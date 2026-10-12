@@ -51,7 +51,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signing or final package validation failed' }
       - name: Validate signed handoff and native installers without opening UI
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          $previous = gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName
+          if ($LASTEXITCODE -ne 0 -or $previous -notmatch '^v\d+\.\d+\.\d+$') { throw 'Official predecessor release missing' }
+          $env:DISPLAYCONTROL_PREDECESSOR_VERSION = $previous.Substring(1)
+          $env:DISPLAYCONTROL_BASELINE_DIR = Join-Path (Get-Location) 'temp/release-baseline'
+          New-Item -ItemType Directory -Force $env:DISPLAYCONTROL_BASELINE_DIR | Out-Null
+          gh release download $previous --repo $env:GITHUB_REPOSITORY --pattern "DisplayControlLab-$($env:DISPLAYCONTROL_PREDECESSOR_VERSION)-Lite.zip" --pattern "DisplayControlLab-$($env:DISPLAYCONTROL_PREDECESSOR_VERSION)-Full.zip" --pattern SHA256SUMS.txt --dir $env:DISPLAYCONTROL_BASELINE_DIR
+          if ($LASTEXITCODE -ne 0) { throw 'Official predecessor download failed' }
           python build/verify-updates.py
           if ($LASTEXITCODE -ne 0) { throw 'Signed updater handoff failed' }
           python build/verify-installers.py

@@ -9,11 +9,11 @@ $channels = if ($LiteOnly) { @('Lite') } else { @('Lite','Full') }
 foreach ($channel in $channels) {
     $output = Join-Path $root "temp/package-staging/$version-$channel-$([guid]::NewGuid().ToString('N'))"
     $selfContained = if ($channel -eq 'Full') { 'true' } else { 'false' }
-    dotnet publish (Join-Path $root 'src/Reader/DisplayControl.Reader.csproj') -c Release -r win-x64 --self-contained $selfContained -p:NuGetAudit=false -o $output
+    dotnet publish (Join-Path $root 'src/Reader/DisplayControl.Reader.csproj') -c Release -r win-x64 --self-contained $selfContained -p:NuGetAudit=false -m:1 -o $output
     if ($LASTEXITCODE -ne 0) { throw "$channel publish failed" }
-    dotnet publish (Join-Path $root 'src/Controller/DisplayControl.Controller.csproj') -c Release -r win-x64 --self-contained $selfContained -p:NuGetAudit=false -o $output
+    dotnet publish (Join-Path $root 'src/Controller/DisplayControl.Controller.csproj') -c Release -r win-x64 --self-contained $selfContained -p:NuGetAudit=false -m:1 -o $output
     if ($LASTEXITCODE -ne 0) { throw "$channel controller publish failed" }
-    dotnet publish (Join-Path $root 'src/Updater/DisplayControl.Updater.csproj') -c Release -r win-x64 --self-contained $selfContained -p:NuGetAudit=false -o $output
+    dotnet publish (Join-Path $root 'src/Updater/DisplayControl.Updater.csproj') -c Release -r win-x64 --self-contained $selfContained -p:NuGetAudit=false -m:1 -o $output
     if ($LASTEXITCODE -ne 0) { throw 'Updater publish failed' }
     Copy-Item (Join-Path $root 'README.md') $output -Force
     $readme = Get-Content (Join-Path $output 'README.md') -Raw -Encoding UTF8
@@ -30,6 +30,7 @@ foreach ($channel in $channels) {
     Copy-Item (Join-Path $root 'docs/ADAPTERS.md') (Join-Path $output 'docs') -Force
     Copy-Item (Join-Path $root 'docs/CAPABILITY_VALIDATION.md') (Join-Path $output 'docs') -Force
     Copy-Item (Join-Path $root 'docs/USER_GUIDE.md') (Join-Path $output 'docs') -Force
+    Copy-Item (Join-Path $root 'docs/VCP_RECOGNITION.md') (Join-Path $output 'docs') -Force
     Copy-Item (Join-Path $root 'docs/PRODUCT_VALIDATION.md') (Join-Path $output 'docs') -Force
     Copy-Item (Join-Path $root 'docs/LIVE_CONTROL_VALIDATION.md') (Join-Path $output 'docs') -Force
     Copy-Item (Join-Path $root 'docs/MONITOR_ADAPTER_VALIDATION.md') (Join-Path $output 'docs') -Force

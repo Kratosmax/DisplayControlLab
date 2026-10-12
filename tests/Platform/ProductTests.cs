@@ -95,12 +95,25 @@ internal static class ProductTests
         var orderedUpdate = new Snapshot { Device = baseline.Device, Readings = [Library.Copy(baseline.Readings[0])] };
         orderedUpdate.Readings[0].Result.Current = 66;
         Check(DisplayWorkspace.Merge(baseline, orderedUpdate).Readings.Select(r => r.Capability.Definition.Id).SequenceEqual(orderedIds), "定向刷新原位替换，不把功能移到末尾");
+        var modeUpdate = Library.Copy(orderedUpdate); modeUpdate.Device.WindowsHdrEnabled = true;
+        Check(DisplayWorkspace.Merge(baseline, modeUpdate).Readings.Count == 1 && baseline.Device.WindowsHdrEnabled == false, "HDR变更后的局部读取不混入旧模式读数，也不修改原缓存");
         var orderedAfter = Library.Copy(baseline);
         DisplayWorkspace.UpdateFromWrite(baseline, orderedAfter, brightnessCapability, new() { Status = "ok", Current = 66, Maximum = 100 });
         Check(orderedAfter.Readings.Select(r => r.Capability.Definition.Id).SequenceEqual(orderedIds), "写入回读不改变功能顺序");
         sim.Requests.Clear(); operation = await workspace.SetFeature(baseline.Device, brightnessCapability, "30", baseline, default);
         Check(sim.Requests.Count == 2 && sim.Requests.Count(r => r.Action == "write") == 1 && sim.Requests.All(r => r.ControlId is "brightness" or "hdr-preset"), "正常亮度仅写目标并核查HDR互锁，不全量读取或重复回读");
         Check(operation.After.Readings.Single(r => r.Capability.Definition.Id == "brightness").Result.Current == 30, "100→30 使用本次确认结果，不恢复缓存中的 100");
+        var staleSource = Library.Copy(baseline);
+        staleSource.Readings.Single(r => r.Capability.Definition.Id == "brightness").Capability.Provider = "old.provider";
+        sim.Requests.Clear();
+        var freshSourceWrite = await workspace.SetFeature(baseline.Device, brightnessCapability, "31", staleSource, default);
+        Check(sim.Requests.Count(r => r.Action == "read" && r.ControlId == "brightness") == 1 && freshSourceWrite.Results.Single().Confirmed,
+            "旧来源缓存先定向重读目标，再按新来源预检写入");
+        var recoverySnapshot = Library.Copy(freshSourceWrite.After);
+        recoverySnapshot.Readings.Single(r => r.Capability.Definition.Id == "brightness").Capability.Provider = "old.provider";
+        Reject(() => DisplayWorkspace.Recovery(freshSourceWrite, recoverySnapshot), "恢复拒绝相同哈希但来源不同的当前值");
+        recoverySnapshot = Library.Copy(freshSourceWrite.After); recoverySnapshot.Complete = false;
+        Reject(() => DisplayWorkspace.Recovery(freshSourceWrite, recoverySnapshot), "恢复拒绝不完整核查");
         sim.Requests.Clear(); var hdrCapability = baseline.Readings.Single(r => r.Capability.Definition.Id == "hdr-preset").Capability;
         await workspace.SetFeature(baseline.Device, hdrCapability, "game", baseline, default);
         Check(sim.Requests.All(r => r.ControlId is "hdr-preset" or "color-preset" or "red-gain" or "green-gain") && sim.Requests.Count(r => r.Action == "write") == 1, "HDR 预设只写目标并读取声明联动项");

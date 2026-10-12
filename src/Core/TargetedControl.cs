@@ -2,13 +2,14 @@ namespace MonitorInspector;
 
 public sealed partial class DisplayWorkspace
 {
+    public static bool SameCapability(Capability a, Capability b) => a.Definition.Id == b.Definition.Id && a.Provider == b.Provider && a.Hash == b.Hash;
     public static List<string> WriteScope(ControlDefinition f) => new[] { f.Id }.Concat(f.WritableWhen.Select(c => c.FeatureId)).Distinct().ToList();
     // Semantic HDR presets may invalidate color state. Older packs lack explicit
     // affectedFeatures, so observe only this small standard color scope.
     public static List<string> AffectedScope(ControlDefinition f) => f.AffectedFeatures.Count > 0 ? f.AffectedFeatures : f.Id == "hdr-preset" ? ["color-preset", "red-gain", "green-gain", "blue-gain"] : [];
     public static Snapshot Merge(Snapshot? prior, Snapshot update)
     {
-        if (prior == null || !HardwareReports.SameDevice(prior.Device, update.Device)) return Library.Copy(update);
+        if (prior == null || !HardwareReports.SameDevice(prior.Device, update.Device) || prior.Device.WindowsHdrEnabled != update.Device.WindowsHdrEnabled) return Library.Copy(update);
         var merged = Library.Copy(prior); merged.Device = Library.Copy(update.Device); merged.Time = update.Time;
         foreach (var r in update.Readings) ReplaceReading(merged, r);
         return merged;
@@ -30,10 +31,11 @@ public sealed partial class DisplayWorkspace
     {
         var fresh = (await Backend.Devices(token)).SingleOrDefault(d => HardwareReports.SameDevice(d, device)) ?? throw new IOException("显示器连接已变化");
         if (fresh.WindowsHdrEnabled != device.WindowsHdrEnabled) throw new InvalidOperationException("系统 HDR 条件已改变，旧设置已取消，请等待状态重载");
-        var before = cached == null ? new Snapshot { Device = fresh } : Library.Copy(cached);
+        var before = cached == null || !HardwareReports.SameDevice(cached.Device, fresh) || cached.Device.WindowsHdrEnabled != fresh.WindowsHdrEnabled
+            ? new Snapshot { Device = fresh } : Library.Copy(cached);
         var f = capability.Definition;
         var reading = before.Readings.SingleOrDefault(r => r.Capability.Definition.Id == f.Id);
-        bool needsRead = f.Readable && (reading?.Result.Status != "ok" || cached?.Device.WindowsHdrEnabled != fresh.WindowsHdrEnabled);
+        bool needsRead = f.Readable && (reading?.Result.Status != "ok" || !SameCapability(reading.Capability, capability));
         var scope = f.WritableWhen.Select(c => c.FeatureId).ToList(); if (needsRead) scope.Add(f.Id);
         var safety = HdrSafety.Policy(fresh);
         if (safety?.BlockedFeatures.Contains(HdrSafety.ProtectedId(safety, f)) == true) scope.Add(safety.ModeFeatureId);

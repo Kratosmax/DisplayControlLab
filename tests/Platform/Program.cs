@@ -4,6 +4,18 @@ using MonitorInspector;
 
 Console.InputEncoding = Console.OutputEncoding = System.Text.Encoding.UTF8;
 if (args.Length == 2 && args[0] == "--ipc-forward") { using var navigation = new LocalNavigation(args[1], _ => { }); if (navigation.IsOwner) return 4; navigation.Forward("22222222222222222222222222222222"); return 0; }
+if (args.Length == 3 && args[0] == "--replay-survey") {
+    string replayOutput = Path.GetFullPath(args[2]); Directory.CreateDirectory(replayOutput);
+    Environment.SetEnvironmentVariable("DISPLAYCONTROL_DATA", Path.Combine(replayOutput, "isolated-data"));
+    var survey = JsonSerializer.Deserialize<ReaderSurvey>(File.ReadAllText(args[1]), Packages.Json)!;
+    var regenerated = Packages.Parse(JsonSerializer.Serialize(survey.Package(), Packages.Json));
+    File.WriteAllText(Path.Combine(replayOutput, "adapter.json"), JsonSerializer.Serialize(regenerated, Packages.Json));
+    var summary = new { device = survey.Device.Name, survey.Time, standard = survey.Features.Count(f => f.Recognition == "公开标准"),
+        vendorCandidates = survey.Features.Count(f => f.Recognition == "厂商候选"), unknown = survey.Features.Count(f => f.Recognition == "用途未知"), hardwareWrites = false, userFilesModified = false,
+        controls = regenerated.Controls.Select(f => new { f.Id, f.Name, f.Writable, f.Verification, f.HelpText }) };
+    File.WriteAllText(Path.Combine(replayOutput, "replay.json"), JsonSerializer.Serialize(summary, Packages.Json));
+    Console.WriteLine(JsonSerializer.Serialize(new { summary.device, summary.standard, summary.vendorCandidates, summary.unknown }, Packages.Json)); return 0;
+}
 
 if (Console.IsInputRedirected && args.Length == 0)
 {
@@ -115,6 +127,8 @@ foreach (string scenario in new[]{"ok","wrong-id","exit","timeout","oversize"})
     if (scenario != "ok") Check(rejected, "插件异常："+scenario);
 }
 await ProductTests.Run(root, evidence, passed);
+await ReaderSurveyTests.Run(Check);
+VcpRecognitionTests.Run(Check);
 File.WriteAllText(Path.Combine(evidence,"platform-tests.txt"),string.Join('\n',passed)+$"\n{passed.Count} 项通过\n");
 File.Copy(Path.Combine(evidence, "platform-tests.txt"), Path.Combine(evidenceRoot, "platform-tests.txt"), true);
 File.WriteAllText(Path.Combine(evidenceRoot, "latest-run.txt"), evidence);

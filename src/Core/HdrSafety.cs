@@ -36,7 +36,7 @@ public static class HdrSafety
     public static string ProtectedId(HdrSafetyPolicy? policy, ControlDefinition definition)
     {
         if (policy == null || definition.Id == policy.ModeFeatureId || policy.BlockedFeatures.Contains(definition.Id)) return definition.Id;
-        return definition.VcpCode switch { 0x10 => "brightness", 0x12 => "contrast", 0x14 => "color-preset", 0x16 => "red-gain", 0x18 => "green-gain", 0x1A => "blue-gain", _ => definition.Id };
+        return definition.VcpCode switch { 0x10 => "brightness", 0x12 => "contrast", 0x14 => "color-preset", 0x16 => "red-gain", 0x18 => "green-gain", 0x1A => "blue-gain", byte code when VcpRecognition.IsNumericImage(code) => "brightness", _ => definition.Id };
     }
     public static string Problem(HdrSafetyPolicy? policy, string featureId, Snapshot? snapshot)
     {
