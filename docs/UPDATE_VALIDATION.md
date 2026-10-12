@@ -1,5 +1,30 @@
 # 更新与发行验证
 
+## 0.4.0正式发布验收（2026-10-12）
+
+发行提交33c8023，标签v0.4.0；Release：https://github.com/Kratosmax/DisplayControlLab/releases/tag/v0.4.0 。发行Actions 38247357237、main CI 38247356964均成功。以下较旧的0.3.1验证仅为历史，不代表当前版本。
+
+本地0.4.0构建0警告/0错误，核心260项、Reader121/Controller119项WPF离屏UI通过；Full/Lite实际发行候选各51项更新专项通过。云端重新构建四包、生成两通道签名清单及兼容清单；核心/控制器UI/两通道更新/真实旧版升级/两安装器静默安装卸载全部通过。本机安装验收发现已有Lite安装而停止，未覆盖用户安装，原生安装/卸载由干净CI完成。
+
+独立下载线上八资产，逐项核对大小、GitHub digest和SHA256SUMS。清单对应ZIP的版本/通道/大小/哈希一致，update.json与update-lite.json相同；正式正文CRLF/LF规范化后与RELEASE_NOTES_CURRENT.md完全一致，latest指向v0.4.0。线上资产表：
+
+| 文件 | 字节 | SHA256 |
+|---|---:|---|
+| DisplayControlLab-0.4.0-Full-Setup.exe | 51443472 | b190407682903c491435a36be8045229dfc76a5a011bd17edc889fef5df69860 |
+| DisplayControlLab-0.4.0-Full.zip | 73028332 | d98877b18e7a7c65de2aff229bcb3a89423ca1a27ec37d7812d8752f972335d4 |
+| DisplayControlLab-0.4.0-Lite-Setup.exe | 2560102 | 25f7aa906a3978d3e783b6e0e90b343431c86576e90121c95969090d24383f89 |
+| DisplayControlLab-0.4.0-Lite.zip | 993902 | 2f81f9f99718fa7430b7550366d300e8e929b93f2ac8877616bf2661ffc01d25 |
+| SHA256SUMS.txt | 659 | 771a8455c34df59e7f0f3414c422fc601e9be3e846b8b9d0924362ad4cdab0a3 |
+| update-full.json | 4466 | 45cd06b8bc1f6a840b7d38d4aa47f959a3967e739f619c1aeb3ce247c1c5ffc3 |
+| update-lite.json | 4459 | 13f410b0ebca2d7d1dea933f5b7adaf2cc9956e534f91223163dc4fcef1357f5 |
+| update.json | 4459 | 13f410b0ebca2d7d1dea933f5b7adaf2cc9956e534f91223163dc4fcef1357f5 |
+
+旧版升级使用0.3.1官方原始Full/Lite ZIP，先核对官方SHA256SUMS；不重编旧版，不改安装身份冒充前版。两通道原客户端真实执行--update-check获取线上latest并验签、--update-inspect预检线上候选ZIP、--update-prepare下载/验签/哈希/暂存，旧版launcher在安装目录外启动，等待身份核对过的安全子进程退出，执行替换、重启--update-verify-startup与清理。更新后入口及身份均0.4.0、用户资料哨兵保留；Full在无全局运行库路径下通过。目标为项目temp中的原版解压副本，不改用户真实安装、不读写显示器。
+
+可重跑证据：temp/release-0.4.0/verify-online.py、verify-live-predecessor.py；原始结果temp/validation/release-0.4.0/online/{release-api,verification}.json和live-predecessor/results.json。云端完整日志cloud-release.log包含两通道原版升级、两安装器安装/卸载/注册表清理结果。445MB release-validation归档保留在Actions，未完整下载；没有把云端归档路径当成本地已获取文件。签名未改、公钥未改，不输出或保存私钥。
+
+本地与云端四包独立构建，哈希差异预期；不覆盖已有正式资产。0.2.0确无更新器仍需手动过渡；0.3.1原版到0.4.0自动更新链已真实验证。未覆盖所有Windows/显卡/固件，发布验证不证明所有私有显示器协议可用。
+
 0.3.1 参考 PinNote 的模块职责，使用独立产品公钥，包含签名公告、双层代理、两通道更新和外部事务替换。旧正式版0.2.0无自动更新器，提供一次性手动过渡，不声称旧客户端可自动升级。
 
 ## 验证范围

@@ -1,6 +1,12 @@
 # DisplayControlLab 接续状态
 
-最后校准：2026-10-12。现有仓库 Kratosmax/DisplayControlLab，remote git@github.com:Kratosmax/DisplayControlLab.git；main 开发基线53c4953与origin/main一致。用户已明确授权记录进度、推送源码并发布新版包体。本次为新增完整功能，Directory.Build.props升级0.4.0，计划标签v0.4.0，四种包与两通道签名清单。当前发布进行中，尚未推送/发布；最后联网核验正式latest仍为v0.3.1。正式签名由已有GitHub Secret在受控发布工作流完成，不修改公钥，不把私钥落入源码。
+最后校准：2026-10-12。0.4.0已正式发布，标签v0.4.0固定发行提交33c8023f29f2cdebfb4233ee0f2b131ceffbf8e6；仓库Kratosmax/DisplayControlLab，remote git@github.com:Kratosmax/DisplayControlLab.git，main保留发行后验收文档提交，实际HEAD以git log为准。用户已授权记录进度、推送源码并发布新版，本轮工作已完成。Directory.Build.props/包内版本/标签均0.4.0；四种包、两通道签名清单、兼容清单和SHA256SUMS共八资产齐全。正式签名在已有GitHub Secret受控工作流完成，公钥未变，私钥不落源码。
+
+Release：https://github.com/Kratosmax/DisplayControlLab/releases/tag/v0.4.0 。发行Actions 38247357237成功，main CI 38247356964成功。已独立核验latest指向v0.4.0、正文只含当前版本、八资产下载大小/GitHub digest/SHA256SUMS匹配，update.json与update-lite.json一致。正文CRLF/LF规范化后与源码完全一致，无内容差异。
+
+使用上一正式版0.3.1原始Full/Lite ZIP（核对官方SHA256，未修改二进制或安装版本身份），在隔离目录真实获取线上latest清单、验签、下载并预检0.4.0、交接旧版外部更新器、替换/重启/启动清理，两通道均通过，资料哨兵保留；Full在无全局DOTNET_ROOT条件验收。CI同样用真正上一正式版在受控本地HTTP代理下完成签名候选升级，并通过两安装器静默安装/卸载及注册表清理。本机发现用户已有Lite安装，安装测试安全停止；用户真实安装、资料与硬件均未修改。
+
+线上包体：Full Setup 51443472字节、Full ZIP 73028332字节、Lite Setup 2560102字节、Lite ZIP 993902字节。Lite ZIP SHA256 2f81f9f99718fa7430b7550366d300e8e929b93f2ac8877616bf2661ffc01d25。全部资产哈希见Release/SHA256SUMS.txt；本地和云端独立构建哈希不同属预期，以线上清单/包相互匹配为准。证据temp/validation/release-0.4.0/online/{release-api,verification}.json、live-predecessor/results.json、cloud-release.log。445MB云端归档未完整下载，改取完整工作流日志核对测试结果；归档仍在成功Actions中保留，不把未下载归档当本地已有证据。
 
 ## 当前产品与本次范围
 
@@ -16,15 +22,15 @@ Package只含本机写入/独立回读/恢复通过、读取有效、不受未�
 
 80条扩展标准及4条品牌候选位于config/vcp-recognition.json并嵌入Core。型号/第三方定义优先；厂商候选保持只读。Dell复合输入源仅解释回读，AOC色温候选不猜K值，MSI缺资料不伪造。能力声明支持ushort枚举（Dell EA FE00 FE01），控制码仍byte。新增试写功能不绕过HDR互锁、白名单、来源Hash、设备身份、当前模式和取消时限时恢复。
 
-## 本次累计修改文件（39项）
+## 本次累计修改文件（40项）
 
-README.md、CODEX_PROGRESS.md、Directory.Build.props、RELEASE_NOTES_CURRENT.md、build/package.ps1、config/vcp-recognition.json、docs/USER_GUIDE.md、docs/READER_WORKFLOW_VALIDATION.md、docs/READ_WRITE_REVIEW.md、docs/VCP_RECOGNITION.md、docs/releases/v0.4.0.md、.github/workflows/release.yml、build/verify-updates.py、src/Core/DisplayControl.Core.csproj、src/Core/HdrSafety.cs、src/Core/Models.cs、src/Core/Native.cs、src/Core/Packages.cs、src/Core/Routing.cs、src/Core/SimulatedDisplayBackend.cs、src/Core/TargetedControl.cs、src/Core/Workspace.cs、src/Core/ReaderSurvey.cs、src/Core/VcpRecognition.cs、src/Core/ImageProbe.cs、src/Core/FeatureWriteTests.cs、src/UI/CompactControls.cs、src/UI/FeatureHelp.cs、src/UI/ResearchPages.cs、src/UI/ToolHost.cs、src/UI/WorkspaceWindow.cs、src/UI/GuidedReader.cs、src/UI/ProtocolPromptWindow.cs、src/UI/RecoveryGuide.cs、src/UI/FeatureTestPanel.cs、tests/Platform/ProductTests.cs、tests/Platform/Program.cs、tests/Platform/ReaderSurveyTests.cs、tests/Platform/VcpRecognitionTests.cs
+README.md、CODEX_PROGRESS.md、Directory.Build.props、RELEASE_NOTES_CURRENT.md、build/package.ps1、config/vcp-recognition.json、docs/USER_GUIDE.md、docs/READER_WORKFLOW_VALIDATION.md、docs/READ_WRITE_REVIEW.md、docs/VCP_RECOGNITION.md、docs/releases/v0.4.0.md、docs/UPDATE_VALIDATION.md、.github/workflows/release.yml、build/verify-updates.py、src/Core/DisplayControl.Core.csproj、src/Core/HdrSafety.cs、src/Core/Models.cs、src/Core/Native.cs、src/Core/Packages.cs、src/Core/Routing.cs、src/Core/SimulatedDisplayBackend.cs、src/Core/TargetedControl.cs、src/Core/Workspace.cs、src/Core/ReaderSurvey.cs、src/Core/VcpRecognition.cs、src/Core/ImageProbe.cs、src/Core/FeatureWriteTests.cs、src/UI/CompactControls.cs、src/UI/FeatureHelp.cs、src/UI/ResearchPages.cs、src/UI/ToolHost.cs、src/UI/WorkspaceWindow.cs、src/UI/GuidedReader.cs、src/UI/ProtocolPromptWindow.cs、src/UI/RecoveryGuide.cs、src/UI/FeatureTestPanel.cs、tests/Platform/ProductTests.cs、tests/Platform/Program.cs、tests/Platform/ReaderSurveyTests.cs、tests/Platform/VcpRecognitionTests.cs
 
 ## 验证与待办
 
-发布前开发预览0.3.1已完成核心260项、Reader121/Controller119项WPF离屏UI；实际验证失败重试→成功落盘导出、手动输入源恢复、型号数值/枚举逐档、新标准项直接草稿、依赖和控制名单。证据temp/validation/write-contract。预览ZIP992891字节，SHA256 b036f639f920f54fd3098681e7a6a347edf3bb008818d77524620aa0ab8265e8；仅历史开发产物，不作为0.4.0正式包。源码/包五程序集及核心测试二进制哈希一致。0.4.0本地构建0警告/0错误、核心260项、Reader121/Controller119项UI和Full/Lite各51项更新专项已通过；四种本地包已生成。本地安装器验收检测到现有Lite安装记录后安全停止，未覆盖用户安装；原生安装/卸载待干净CI环境验证。本机与云端产物不混淆。发布工作流升级门禁改用真正上一正式版原始ZIP，不修改旧二进制或版本身份，校验其SHA256后执行两通道完整升级。
+发布前开发预览0.3.1已完成核心260项、Reader121/Controller119项WPF离屏UI；实际验证失败重试→成功落盘导出、手动输入源恢复、型号数值/枚举逐档、新标准项直接草稿、依赖和控制名单。证据temp/validation/write-contract。预览ZIP992891字节，SHA256 b036f639f920f54fd3098681e7a6a347edf3bb008818d77524620aa0ab8265e8；仅历史开发产物，不作为0.4.0正式包。源码/包五程序集及核心测试二进制哈希一致。0.4.0本地构建0警告/0错误、核心260项、Reader121/Controller119项UI和Full/Lite各51项更新专项已通过；四种本地包已生成。本地安装器验收检测到现有Lite安装记录后安全停止，未覆盖用户安装；原生安装/卸载已在干净CI环境通过。本机与云端产物不混淆。发布工作流升级门禁改用真正上一正式版原始ZIP，不修改旧二进制或版本身份，校验其SHA256后执行两通道完整升级。
 
-当前下一步：提交推送main及v0.4.0→等待CI构建签名发布→独立核对线上八资产及哈希/清单/正文→上一正式版0.3.1原始客户端两通道升级验证→更新本页发布证据并同步GitHub。无权限决策阻塞；发布授权来自当前用户本轮指令。0.2.0无更新器需手动过渡，0.3.1真实原始客户端用于升级验收，不能重编冒充旧版。
+本轮发布验收已完成，无阻塞；下一步等待用户实机使用反馈，不自行扩展私有协议。用户当前授权只涵盖本轮发布，后续发行仍按届时指令核对。0.2.0无更新器需手动过渡；0.3.1到0.4.0真实原始客户端两通道更新已通过。源码与进度推送后可跨设备接续。
 
 ```powershell
 dotnet build DisplayControlLab.sln -c Release -m:1 -p:NuGetAudit=false
