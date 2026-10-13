@@ -1,14 +1,19 @@
-## 0.5.0 发布进行中（2026-10-13）
+## 当前正式发行：0.5.0（2026-10-13）
 
-用户已明确授权推送GitHub并发布新版，版本源/README/当前公告已改0.5.0，新功能用minor版本。包含此前全部本地改动，完整变更27文件见git status与本页历史列表，新增Directory.Build.props、README.md、RELEASE_NOTES_CURRENT.md、docs/releases/v0.5.0.md。已核对远程main基线9bbfda0、latest v0.4.0、v0.5.0尚不存在。
+用户授权源码推送和发行已完成。发行提交e0ed857f02a06b30eb2b36ad1e4337bccc01eaa7，标签v0.5.0固定该提交；main随后保存发行后验收文档，实际HEAD以git log为准。Release https://github.com/Kratosmax/DisplayControlLab/releases/tag/v0.5.0 ，发行Actions38367173785成功、main CI38367169203成功。版本源/README/包身份/标签0.5.0一致。
 
-本地Release构建0警告/0错误；核心271项、Reader140项/Controller138项UI、Full/Lite各51项更新专项通过。四包已生成：Full Setup51451413、FullZIP73083965、LiteSetup2577964、LiteZIP1016442字节。Lite SHA256921020fa8f9bb1ac519b7888215126ac494d9b54f0e4002078f5cd416f3e70a4。证据temp/validation/release-0.5.0；命令同前版本，目标路径改release-0.5.0及版本号0.5.0；./build/package.ps1构建四包。测试正常用户上下文隔离模拟，无实机写入或覆盖用户安装。签名只在GitHub受控Secret工作流进行，不本地生成伪正式清单。
+本地构建0警告/0错误，核心271项、Reader140项/Controller138项、Full/Lite各51项更新专项通过；四种本地包已生成。云端重新构建并签名，通过原始官方0.4.0 Full/Lite升级及两安装器安装卸载/注册表清理，完整日志temp/validation/release-0.5.0/cloud-release.log。没有覆盖用户本机安装、没有显示窗口或写硬件。
 
-当前状态待源码提交推送、标签、发行CI、四包/三清单/SHA256SUMS线上核验。发行工作流使用真正0.4.0原始Full/Lite包验证签名候选下载/预检/更新器交接与安装器；不修改旧二进制身份。公告明确旧版准备安装卡住需一次性手动升级，旧UI首次退出根因仍未全复现；不把CLI验证当实机UI已修复证明。
+发布后独立下载八资产，核对GitHub digest、SHA256SUMS、包体大小/身份/版本、清单与ZIP一致；latest v0.5.0、公告仅本版且与RELEASE_NOTES_CURRENT.md一致；兼容update.json与update-lite.json相同。线上FullSetup51464737字节、FullZIP73050527、LiteSetup2577003、LiteZIP1016093。LiteZIP SHA256307be29af0c765ea6537be432b592c57099cd5cf891a4ef0685e5ca35ca252aa。证据temp/validation/release-0.5.0/online/{release-api,verification}.json。线上哈希与本地不同属独立构建，不混淆。
 
-以下待验收章节为本次发行累积开发历史，不能继续解释为“最新版本0.4.0未授权发布”。发布完成将更新本节与发行验收文档；真实Dell HDMI识别码DEL/0xD0DA和DP 0xD0D9不同，未扩大适配包或写入验证范围。
+再次用真正0.4.0原始官方Full/Lite二进制在项目temp隔离执行线上latest验签、实际ZIP预检、下载/准备、旧更新器交接、替换/重启/清理，两通道完整通过，用户资料哨兵保留；Full无全局DOTNET_ROOT路径通过。证据live-predecessor/results.json。脚本temp/release-0.5.0/{verify-online,verify-live-predecessor}.py；不改旧二进制或安装身份。CLI链验证不等于用户旧UI首次退出问题完全复现，公告已给卡在准备安装的一次性手动过渡。
+
+本轮发行最终27变更文件见e0ed857提交；发布后追加docs/releases/v0.5.0.md验收和CODEX_PROGRESS.md。用户最新反馈的Dell DP0xD0D9/HDMI0xD0DA识别码差异只读核实，未扩大匹配与写入验证。此前累积开发章节是历史记录，其“未发布/0.4.0预览”描述不再作为当前状态。正式包包括统一整包选择、命名/读取同步、验证继承、图像恢复和更新交接保护。
+
+发行验收无阻塞；下一步等待用户0.5.0实机反馈。尚未全测固件全模式/声音别名/外部干预；旧版首次点击更新退出根因未完全复现，保留说明和日志，不虚称彻底修复。工作区进度源码推送后可跨设备接续。无私钥、用户资料、temp包体进入Git。后续发布仍按届时授权，不覆盖已发版本。
 
 ---
+
 ## 最新待验收：控制页统一整包选择（2026-10-13）
 
 本轮移除每个功能卡片的来源下拉，ControlsPage顶部唯一“协议包：名称”按钮，展开选择匹配protocol包或内置标准并使用；显示友好名称/版本。一次切换当前设备整包路由，清旧逐项来源和缓存，仅读取刷新；包没覆盖项不混入控制页。安装研究包保留多份，控制包使用一个。Reader生成包应用同步选择；已验证名单/白名单不放宽，插件信任不绕过。旧多来源状态无统一选择时保留，用户新入口选择后统一。
