@@ -23,7 +23,7 @@ internal static class ReaderSurveyTests
                     new() { Code = "0x04", Declared = "显示器声明", Status = "跳过命令类项目" },
                     new() { Code = "0x14", Declared = "显示器声明", Values = "0x05, 0x08, 0x0B, 0x0C", Current = 12, Maximum = 12, Status = "读取成功" },
                     new() { Code = "0xDC", Declared = "显示器声明", Values = backend.PictureChoices, Current = backend.Values.GetValueOrDefault("display-preset"), Maximum = 100, Status = "读取成功" }
-                ] }), writes, _ => { }, token);
+                ] }), writes, _ => { }, token, reuseVerified: false);
         var backend = new SurveyBackend(); var report = await Detect(backend);
         check(report.Status == "已完成" && !report.RecoveryRequired && backend.Values["brightness"] == 50 && backend.Values["contrast"] == 50, "自动检测试写后恢复所有测试原值");
         check(backend.Writes.Where(r => r.ControlId is not ("color-preset" or "volume")).Select(r => r.ControlId).SequenceEqual(new[] { "brightness", "brightness", "contrast", "contrast", "red-gain", "red-gain", "green-gain", "green-gain", "blue-gain", "blue-gain" }), "数值试写限定标准图像项并逐项恢复，不触碰电源或输入源");
@@ -38,8 +38,43 @@ internal static class ReaderSurveyTests
             && backend.Values["color-preset"] == 12, "仅试写声明色温档位，逐档回读并恢复原档位与RGB");
         check(colorProbe.Probes.All(p => p.Note.Contains("无法通过色值判定")), "RGB无变化时不从档位回读伪造色温名称");
         var color = package.Controls.Single(f => f.Id == "color-preset");
+        check(color.Rules.Single().Labels.Values.Contains("9300K") && color.Rules.Single().Labels.Values.Contains("用户自定义"), "色温逐档试写保留已知标准名称，不被临时编码覆盖");
+        var degraded = Library.Copy(colorProbe.Definition);
+        foreach (var rule in degraded.Rules) foreach (string id in rule.Values.Keys) rule.Labels[id] = $"编码 0x{rule.Values[id]:X2}（名称未确认）";
+        report.UseDeclaredStandardChoices(degraded);
+        check(degraded.Rules.Single().Values.Count == 4 && degraded.Rules.Single().Labels.Values.Contains("9300K")
+            && degraded.Rules.Single().Labels.Values.Contains("用户自定义") && degraded.Rules.Single().Labels.Values.Count(l => l.Contains("名称未确认")) == 1,
+            "旧未知映射从原标准来源恢复名称，仍只显示四个声明档位，0x0C保持未知");
         check(color.Verification == "write-confirmed" && color.AllowedWriteValues!.Order().SequenceEqual(new uint[] { 5, 8, 11, 12 }), "色温导出只开放已确认试调及恢复的编码");
         check(color.Rules.Single().Values.Values.Order().SequenceEqual(new uint[] { 5, 8, 11, 12 }) && color.Rules.Single().Labels["code-0c"].Contains("名称未确认"), "标准色温按显示器声明限制选项，未知名称保留编码不猜含义");
+        var namedReport = Library.Copy(report);
+        var beforeNames = Library.Copy(namedReport.Features.Single(f => f.Definition.Id == "color-preset"));
+        namedReport.SaveOptionNames("color-preset", new Dictionary<string, string> { ["code-0c"] = "我的预设" });
+        var reopened = Library.Get<ReaderSurvey>("reader-surveys", namedReport.Id);
+        var namedItem = reopened.Features.Single(f => f.Definition.Id == "color-preset");
+        check(reopened.Package().Controls.Single(f => f.Id == "color-preset").Rules.Single().Labels["code-0c"] == "我的预设"
+            && namedItem.TestedValues.SequenceEqual(beforeNames.TestedValues) && namedItem.WriteStatus == beforeNames.WriteStatus
+            && namedItem.Definition.Rules.Single().Values.SequenceEqual(beforeNames.Definition.Rules.Single().Values), "选项命名落盘重开及导出保留名称，不改变控制码、测试结果或白名单");
+        bool emptyRejected = false;
+        try { namedReport.SaveOptionNames("color-preset", new Dictionary<string, string> { ["code-0c"] = "  " }); } catch (ArgumentException) { emptyRejected = true; }
+        check(emptyRejected && namedReport.Features.Single(f => f.Definition.Id == "color-preset").Definition.Rules.Single().Labels["code-0c"] == "我的预设", "空名称不保存、不丢失已有名称");
+        var freshRead = await Detect(backend, false);
+        var changedMode = Library.Copy(freshRead); changedMode.Device.WindowsHdrEnabled = true;
+        freshRead.InheritSavedResults(namedReport);
+        var keptColor = freshRead.Features.Single(f => f.Definition.Id == "color-preset");
+        check(keptColor.WriteVerified && keptColor.TestedValues.SequenceEqual(beforeNames.TestedValues)
+            && freshRead.Package().Controls.Single(f => f.Id == "color-preset").Rules.Single().Labels["code-0c"] == "我的预设",
+            "只读重测相同设备来源模式保留名称和写入证明，可直接导出原已测档位");
+        Library.Save("reader-surveys", freshRead.Id, freshRead);
+        var cachedRead = await new ReaderSurveyRunner(new DisplayWorkspace(backend)).Run(backend.Device,
+            _ => Task.FromResult(Library.Copy(report.Discovery!)), false, _ => { }, default);
+        check(cachedRead.Features.Single(f => f.Definition.Id == "color-preset").WriteVerified
+            && cachedRead.Package().Controls.Single(f => f.Id == "color-preset").Rules.Single().Labels["code-0c"] == "我的预设",
+            "真实Run重新只读检测自动继承已保存证明与名称，不需重新试写");
+        changedMode.InheritSavedResults(namedReport);
+        var invalidColor = changedMode.Features.Single(f => f.Definition.Id == "color-preset");
+        check(!invalidColor.WriteVerified && invalidColor.Definition.Rules.Single().Labels["code-0c"] == "我的预设" && invalidColor.TestReason.Contains("需要重试"),
+            "HDR模式改变保留名称但不沿用写入权限，明确提示重试");
         check(package.Controls.Single(f => f.Id == "brightness").Writable && package.Controls.All(f => f.Writable && f.Verification == "write-confirmed") && package.Controls.All(f => f.Id is not ("vcp.e0" or "vcp.e1")) && package.MenuHints.Count == 0, "导出实际可导入适配包，未知语义不会开放写入");
         var path = Path.Combine(Library.Folder("survey-test-exports"), "adapter.json"); File.WriteAllText(path, JsonSerializer.Serialize(package, Packages.Json));
         Packages.Choose(backend.Device, "brightness", "standard");
@@ -51,6 +86,14 @@ internal static class ReaderSurveyTests
         check(package.Controls.All(f => routes.GetValueOrDefault(backend.Device.DevicePath + "|" + f.Id) == installed.Id)
             && routes[backend.Device.DevicePath + "|external.feature"] == "external.provider", "应用检测包一次保存所有功能来源，保留包外功能路由");
         Packages.Detach(backend.Device, installed.Id);
+        var profileDevice = Library.Copy(backend.Device); profileDevice.DevicePath += "-whole-package";
+        Packages.SelectControlPackage(profileDevice, installed.Id);
+        check(Packages.ControlPackageFeatures(profileDevice)!.SetEquals(installed.Controls.Select(f => f.Id))
+            && CapabilityCatalog.Resolve(profileDevice).Where(c => installed.Controls.Any(f => f.Id == c.Definition.Id)).All(c => c.Provider == installed.Id),
+            "整包切换一次路由全部功能，并仅展示选中包实际验证项");
+        Packages.SelectControlPackage(profileDevice, "standard");
+        check(CapabilityCatalog.Resolve(profileDevice).Where(c => DeviceControl.Standard.Any(f => f.Id == c.Definition.Id)).All(c => c.Provider == "standard")
+            && Packages.State().FeatureRoutes.Keys.All(k => !k.StartsWith(profileDevice.DevicePath + "|")), "切回内置标准统一清除旧逐项路由，不混用旧协议包");
         var recoveryBaseline = report.Rounds[0]; var recoveryCurrent = Library.Copy(recoveryBaseline);
         check(ReaderSurvey.RecoveryMatches(recoveryBaseline, recoveryCurrent), "恢复核查接受同设备同来源的完整原值");
         recoveryCurrent.Complete = false;
@@ -198,6 +241,15 @@ internal static class ReaderSurveyTests
             && backend.Values["display-preset"] == 0 && backend.Values["brightness"] == 50 && !report.RecoveryRequired, "声明画面档位逐档试写并核查联动，恢复画面预设及亮度");
         check(report.Package().Controls.Single(f => f.Id == "display-preset") is { Writable: true, Verification: "write-confirmed" }
             && picture.TestedValues.Order().SequenceEqual(new uint[] { 0, 1, 3 }), "画面预设通过后只开放实测档位，未确认名称保留编码");
+        backend = new SurveyBackend { PictureChoices = "0x00, 0x01, 0x03", PictureChangesColor = true }; backend.Values["display-preset"] = 0;
+        report = await Detect(backend, false);
+        await new ReaderSurveyRunner(new DisplayWorkspace(backend)).Retry(report, "display-preset", "code-01", true, _ => { }, default);
+        check(!report.RecoveryRequired && backend.Values["color-preset"] == 12 && backend.Values["display-preset"] == 0
+            && report.Features.Single(f => f.Definition.Id == "display-preset").TestedValues.Order().SequenceEqual(new uint[] { 0, 1 })
+            && backend.Writes.Any(w => w.ControlId == "color-preset"), "手动画面单档试写走图像恢复，恢复原色温，仅开放所测与原档位");
+        await new ReaderSurveyRunner(new DisplayWorkspace(backend)).Retry(report, "display-preset", "code-03", true, _ => { }, default);
+        check(report.Features.Single(f => f.Definition.Id == "display-preset").TestedValues.Order().SequenceEqual(new uint[] { 0, 1, 3 }),
+            "连续单档成功试写累计证据，后一次不丢掉之前已通过档位");
         backend = new SurveyBackend { PictureChoices = "0x00, 0x01", PictureChangesImage = true, StickyPictureImage = true }; backend.Values["display-preset"] = 0; report = await Detect(backend);
         check(!report.RecoveryRequired && backend.Values["brightness"] == 50 && backend.Writes.Count(w => w.ControlId == "brightness") == 3,
             "画面预设恢复后亮度仍有残留变化时，按已知标准通道恢复原亮度并完整核查");
@@ -248,6 +300,7 @@ internal static class ReaderSurveyTests
         public bool ChangeRgbSourceOnColorRestore { get; set; }
         public string PictureChoices { get; set; } = "";
         public bool PictureChangesImage { get; set; }
+        public bool PictureChangesColor { get; set; }
         public bool StickyPictureImage { get; set; }
         public bool FailPictureRestore { get; set; }
         bool rgbSourceChanged;
@@ -272,6 +325,7 @@ internal static class ReaderSurveyTests
                 bool applied = !NoWriteEffect && !(IgnoreColor && request.ControlId == "color-preset");
                 if (applied) Values[request.ControlId] = desired;
                 if (applied && PictureChangesImage && request.ControlId == "display-preset" && !(StickyPictureImage && desired == 0)) Values["brightness"] = desired == 0 ? 50u : 60u;
+                if (applied && PictureChangesColor && request.ControlId == "display-preset") Values["color-preset"] = 5;
                 if (applied && ColorChangesRgb && request.ControlId == "color-preset" && !(StickyRgb && desired == 12)) { Values["red-gain"] = desired == 5 ? 70u : desired == 8 ? 30u : 50u; Values["blue-gain"] = desired == 5 ? 30u : desired == 8 ? 70u : 50u; }
                 if (applied && ColorCollateral && request.ControlId == "color-preset") Values["volume"] = 13;
                 if (Collateral) Values["red-gain"] = 40;

@@ -36,6 +36,36 @@ public sealed class ReaderSurvey
     public Snapshot? RecoveryObserved { get; set; }
 
     public bool CanPackage => Features.Count > 0 && (Status == "已完成" || Status == "需要核查恢复" && Rounds.Count >= 3);
+    public void InheritSavedResults(ReaderSurvey previous)
+    {
+        if (!HardwareReports.SameDevice(Device, previous.Device) || Rounds.Count == 0 || previous.Rounds.Count == 0) return;
+        var blocked = previous.RecoveryBlockedFeatures();
+        foreach (var item in Features) {
+            var old = previous.Features.FirstOrDefault(f => f.Definition.Id == item.Definition.Id);
+            var before = previous.Rounds[0].Readings.FirstOrDefault(r => r.Capability.Definition.Id == item.Definition.Id);
+            var now = Rounds[0].Readings.FirstOrDefault(r => r.Capability.Definition.Id == item.Definition.Id);
+            if (old == null || before == null || now == null || !DisplayWorkspace.SameCapability(before.Capability, now.Capability)
+                || old.Backend != item.Backend || old.Definition.VcpCode != item.Definition.VcpCode) continue;
+            // Saved enum mappings came from this same source. Keep names without claiming a new test.
+            if (old.Definition.ValueType == item.Definition.ValueType && old.Definition.ValueType is "enum" or "boolean") {
+                item.Definition.Rules = Library.Copy(old.Definition.Rules);
+            }
+            if (!old.WriteVerified || blocked.Contains(item.Definition.Id)) continue;
+            var scope = new[] { item.Definition.Id }.Concat(old.Definition.AffectedFeatures)
+                .Concat(old.Definition.WritableWhen.Select(c => c.FeatureId)).Concat(old.Definition.WriteAfter).Distinct();
+            bool contextMatches = Device.WindowsHdrEnabled == previous.Device.WindowsHdrEnabled && item.ReadStatus == "读取已验证"
+                && DisplayWorkspace.Conditions(old.Definition.WritableWhen, Rounds[0]).Length == 0 && scope.All(id => {
+                    var a = previous.Rounds[0].Readings.FirstOrDefault(r => r.Capability.Definition.Id == id);
+                    var b = Rounds[0].Readings.FirstOrDefault(r => r.Capability.Definition.Id == id);
+                    return a?.Result.Status == "ok" && b?.Result.Status == "ok" && a.Result.Maximum == b.Result.Maximum
+                        && DisplayWorkspace.SameCapability(a.Capability, b.Capability);
+                });
+            if (!contextMatches) { item.TestReason = "已保留名称；模式、范围或条件改变，需要重试写入"; continue; }
+            item.Definition = Library.Copy(old.Definition); item.WriteStatus = old.WriteStatus;
+            item.TestedValues = Library.Copy(old.TestedValues); item.Probes = Library.Copy(old.Probes); item.OperationId = old.OperationId;
+            item.TestReason = "沿用已保存的写入及恢复验证"; item.Note += $"；沿用 {previous.Time:MM-dd HH:mm} 的测试记录";
+        }
+    }
 
     public HashSet<string> RecoveryBlockedFeatures()
     {
@@ -88,6 +118,15 @@ public sealed class ReaderSurvey
                 && DeviceControl.Standard.Any(f => f.Id == item.Definition.Id && f.VcpCode == item.Definition.VcpCode && f.Writable)) item.Definition.Writable = true;
         }
         VcpRecognition.Recognize(this);
+        foreach (var item in Features.Where(f => f.Backend == "standard-ddc" && f.Definition.ValueType == "enum")) {
+            var choices = Library.Copy(item.Definition); UseDeclaredStandardChoices(choices);
+            foreach (var rule in item.Definition.Rules) foreach (var value in rule.Values) {
+                if (!value.Key.StartsWith("code-", StringComparison.Ordinal) || !rule.Labels.GetValueOrDefault(value.Key, "").Contains("名称未确认")) continue;
+                var mapped = choices.Rules.FirstOrDefault(r => r.Values.ContainsValue(value.Value));
+                var id = mapped?.Values.First(v => v.Value == value.Value).Key;
+                if (id != null && mapped!.Labels.TryGetValue(id, out var label)) rule.Labels[value.Key] = label;
+            }
+        }
     }
 
     public AdapterPackage Package()
@@ -109,6 +148,7 @@ public sealed class ReaderSurvey
         } while (changed);
         foreach (var item in eligible) {
             var f = Library.Copy(item.Definition); f.Backend = item.Backend; f.Writable = true; f.Verification = "write-confirmed";
+            if (item.Backend == "standard-ddc") UseDeclaredStandardChoices(f);
             if (f.ValueType is "enum" or "boolean" && item.TestedValues.Count > 0) {
                 var allowed = item.TestedValues.ToHashSet(); f.AllowedWriteValues = allowed.ToList();
                 foreach (var rule in f.Rules) {
@@ -125,6 +165,24 @@ public sealed class ReaderSurvey
         Packages.Validate(p); return p;
     }
 
+    public void SaveOptionNames(string featureId, IReadOnlyDictionary<string, string> names)
+    {
+        var item = Features.Single(f => f.Definition.Id == featureId);
+        if (item.Definition.ValueType is not ("enum" or "boolean")) throw new InvalidOperationException("此功能没有可命名的选项。");
+        var definition = Library.Copy(item.Definition);
+        if (item.Backend == "standard-ddc") UseDeclaredStandardChoices(definition);
+        foreach (var entry in names) {
+            string label = entry.Value.Trim();
+            if (label.Length is < 1 or > 80 || label.Any(char.IsControl)) throw new ArgumentException("选项名称请填1至80个字，不能换行。");
+            var rules = definition.Rules.Where(r => r.Values.ContainsKey(entry.Key)).ToList();
+            if (rules.Count == 0) throw new InvalidOperationException("选项已改变，请重新打开命名面板。");
+            foreach (var rule in rules) rule.Labels[entry.Key] = label;
+        }
+        var previous = item.Definition; item.Definition = definition;
+        try { Library.Save("reader-surveys", Id, this); }
+        catch { item.Definition = previous; throw; }
+    }
+
     public void UseDeclaredStandardChoices(ControlDefinition definition)
     {
         if (definition.ValueType != "enum" || definition.Rules.Count > 1 || definition.Rules.Count == 1 && (!definition.Rules[0].MatchAnyMaximum || definition.Rules[0].WindowsHdr != null)) return;
@@ -137,10 +195,24 @@ public sealed class ReaderSurvey
         }
         if (advertised.Count == 0) return;
         var rule = definition.Rules.FirstOrDefault() ?? new ValueRule { MatchAnyMaximum = true }; var values = new Dictionary<string, uint>(); var labels = new Dictionary<string, string>();
+        var original = Rounds.FirstOrDefault()?.Readings.FirstOrDefault(r => r.Capability.Definition.Id == definition.Id)?.Capability;
+        var originalDefinition = original?.Definition;
+        if (original?.Provider == "standard" && originalDefinition?.VcpCode == definition.VcpCode)
+            originalDefinition = DeviceControl.Standard.FirstOrDefault(f => f.Id == definition.Id && f.VcpCode == definition.VcpCode);
         foreach (uint value in advertised.Distinct()) {
             string? known = rule.Values.FirstOrDefault(v => v.Value == value).Key;
             string id = known ?? $"code-{value:x2}";
             values[id] = value; labels[id] = known == null ? $"编码 0x{value:X2}（名称未确认）" : rule.Labels.GetValueOrDefault(id, id);
+            if (known == null || id.StartsWith("code-", StringComparison.Ordinal) && labels[id].Contains("名称未确认")) {
+                var prior = originalDefinition?.Rules.FirstOrDefault(r => r.MatchAnyMaximum && r.WindowsHdr == null && r.Values.ContainsValue(value));
+                var priorId = prior?.Values.First(p => p.Value == value).Key;
+                if (priorId != null && prior!.Labels.TryGetValue(priorId, out var label)) labels[id] = label;
+                if (labels[id].Contains("名称未确认") && original?.Provider.StartsWith("user.detected-", StringComparison.Ordinal) == true
+                    && DeviceControl.Standard.Any(f => f.Id == definition.Id && f.VcpCode == definition.VcpCode)) {
+                    var standardId = StandardOptions.Values(definition.Id).FirstOrDefault(v => v.Value == value).Key;
+                    if (standardId != null && StandardOptions.Labels(definition.Id).TryGetValue(standardId, out var standardLabel)) labels[id] = standardLabel;
+                }
+            }
         }
         rule.Values = values; rule.Labels = labels;
         definition.Rules = [rule];
@@ -250,8 +322,9 @@ public sealed partial class ReaderSurveyRunner(DisplayWorkspace workspace)
     static bool Good(ControlResult r) => r.Status == "ok" && r.Current.HasValue && r.Maximum.HasValue;
     static bool ReadSucceeded(ControlResult r) => Good(r) || r.Status == "ok" && r.Text != null;
     public async Task<ReaderSurvey> Run(MonitorData device, Func<CancellationToken, Task<DdcResult>> scan,
-        bool testImageWrites, Action<string> progress, CancellationToken token)
+        bool testImageWrites, Action<string> progress, CancellationToken token, bool reuseVerified = true)
     {
+        var previousReport = Library.All<ReaderSurvey>("reader-surveys").FirstOrDefault(r => HardwareReports.SameDevice(r.Device, device) && r.Features.Count > 0);
         ReaderSurvey? unresolved = null;
         bool conflictingBaselines = false;
         foreach (var pending in Library.All<ReaderSurvey>("reader-surveys").Where(r => r.RecoveryRequired && HardwareReports.SameDevice(r.Device, device))) {
@@ -314,6 +387,7 @@ public sealed partial class ReaderSurveyRunner(DisplayWorkspace workspace)
                 if (item.Samples.All(Good) && item.Samples.Select(r => (r.Current, r.Maximum)).Distinct().Count() == 1) item.ReadStatus = "读取已验证";
             }
             report.RestoreGeneratedStandardDefinitions(); Save();
+            if (reuseVerified && previousReport != null) { report.InheritSavedResults(previousReport); Save(); }
             if (unresolved != null) {
                 report.RecoveryRequired = true; report.RecoveryBaseline = conflictingBaselines ? null : Library.Copy(unresolved.RecoveryBaseline);
                 report.RecoveryObserved = Library.Copy(report.Rounds[^1]);
@@ -327,8 +401,9 @@ public sealed partial class ReaderSurveyRunner(DisplayWorkspace workspace)
             }
             foreach (var item in report.Features) {
                 token.ThrowIfCancellationRequested();
+                if (item.WriteVerified) continue;
                 if (report.RecoveryRequired) { if (!item.WriteVerified && item.WriteStatus is not ("恢复未确认" or "待恢复核查")) item.TestReason = "先确认上次设置已恢复，再重试"; continue; }
-                if (!testImageWrites) { item.TestReason = "仅完成读取；点击测试验证写入"; continue; }
+                if (!testImageWrites) { if (!item.TestReason.StartsWith("已保留名称")) item.TestReason = "仅完成读取；点击测试验证写入"; continue; }
                 await TestFeature(report, item, null, false, progress, token);
                 Save();
             }

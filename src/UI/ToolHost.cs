@@ -126,6 +126,10 @@ public partial class WorkspaceWindow
         SetControlView(true);
         Check(Preferences().CompactControls && compactControls, "紧凑视图选择持久化");
         Capture(Path.Combine(directory, "compact-common.png"), "control", 1480, 900, 1);
+        Check(Descendants(body).OfType<System.Windows.Controls.Button>().Count(b => b.Content is string text && text.StartsWith("协议包：")) == 1,
+            "控制页仅一个整包切换按钮，显示可读包名");
+        Check(!Descendants(body).OfType<System.Windows.Controls.ComboBox>().Any(c => c.ItemsSource is List<string>),
+            "功能卡片不再显示逐项提供者下拉");
         Check(numericEditors.Count == 2 && numericEditors.All(e => e.Slider.IsEnabled), "紧凑常用视图复用亮度对比度编辑器");
         var compactPanel = Descendants(body).OfType<CompactFeaturePanel>().Single();
         var firstCompact = (System.Windows.FrameworkElement)compactPanel.Children[0]; var secondCompact = (System.Windows.FrameworkElement)compactPanel.Children[1];
@@ -290,7 +294,7 @@ public partial class WorkspaceWindow
         Check(snapshot!.Readings.Single(r => r.Capability.Definition.Id == "brightness").Result.Status == "error", "失败态不使用上次成功值"); ((SimulatedDisplayBackend)workspace.Backend).FailFeature = null;
         body.IsEnabled = false; Capture(Path.Combine(directory, "busy.png"), "control", 1040, 660, 1); body.IsEnabled = true;
         ((SimulatedDisplayBackend)workspace.Backend).Offline = true; await RefreshDevices(CancellationToken.None); Capture(Path.Combine(directory, "empty.png"), "control", 1040, 660, 1); Check(device == null, "离线空态不保留可写目标");
-        RunUpdateUiTests(directory, Check);
+        await RunUpdateUiTests(directory, Check);
         Check(!IsVisible, "验收窗口从未 Show，不创建前台窗口");
         File.WriteAllText(Path.Combine(directory, "ui-tests.json"), JsonSerializer.Serialize(new { passed, count = passed.Count, simulation = true, visibleWindow = IsVisible, foregroundRequested = false, dataDirectory = Packages.Home }, Packages.Json));
     }

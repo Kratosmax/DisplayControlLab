@@ -13,7 +13,7 @@ public sealed class ImageProbe
 public sealed partial class ReaderSurveyRunner
 {
     static readonly string[] ColorScope = ["color-preset", "red-gain", "green-gain", "blue-gain"];
-    async Task TestImagePresets(ReaderSurvey report, SurveyFeature item, Action<string> progress, CancellationToken token)
+    async Task TestImagePresets(ReaderSurvey report, SurveyFeature item, Action<string> progress, CancellationToken token, string? selectedValue = null)
     {
         bool colour = item.Definition.Id == "color-preset";
         byte code = colour ? (byte)0x14 : (byte)0xDC;
@@ -55,7 +55,11 @@ public sealed partial class ReaderSurveyRunner
         if (!colour) definition.AffectedFeatures = scope.Where(id => id != item.Definition.Id).ToList();
         // Trial values come exclusively from capabilities; labels do not determine SET.
         definition.Rules = [new() { MatchAnyMaximum = true, Values = values.ToDictionary(v => $"code-{v:x2}", v => v),
-            Labels = values.ToDictionary(v => $"code-{v:x2}", v => $"编码 0x{v:X2}（名称未确认）") }];
+            Labels = values.ToDictionary(v => $"code-{v:x2}", v => {
+                var rule = item.Definition.Rules.FirstOrDefault(r => r.Values.ContainsValue(v));
+                var id = rule?.Values.First(p => p.Value == v).Key;
+                return id == null ? $"编码 0x{v:X2}（名称未确认）" : rule!.Labels.GetValueOrDefault(id, id);
+            }) }];
         var draft = new AdapterPackage { Id = "user.image-probe", Name = item.Definition.Name + "对比", Author = "Reader",
             Match = new() { Manufacturer = report.Device.Edid.Manufacturer, ProductCode = report.Device.Edid.Product, Name = report.Device.Name },
             Controls = [definition], HdrSafety = report.HdrSafety };
@@ -66,7 +70,10 @@ public sealed partial class ReaderSurveyRunner
             item.WriteStatus = "未试写 / 条件锁定"; item.Note += "；" + problem; return;
         }
         var confirmed = new List<uint>();
-        foreach (uint value in values.Where(v => v != original)) {
+        var selectedDefinition = Library.Copy(item.Definition); report.UseDeclaredStandardChoices(selectedDefinition);
+        uint? selected = selectedValue == null ? null : ProtocolCodec.Value(selectedDefinition, selectedValue, current.Result.Maximum!.Value, baseline.Device.WindowsHdrEnabled);
+        if (selected.HasValue && (!values.Contains(selected.Value) || selected == original)) { item.TestReason = "请选择与当前不同且显示器已声明的档位"; return; }
+        foreach (uint value in values.Where(v => v != original && (!selected.HasValue || v == selected))) {
             token.ThrowIfCancellationRequested();
             progress($"正在试调{item.Definition.Name}，检查相关设置后恢复原值…");
             var before = await workspace.Capture(report.Device, token);
@@ -94,9 +101,6 @@ public sealed partial class ReaderSurveyRunner
                         throw new IOException("设备、来源、模式或外部状态变化，停止自动恢复");
                     var state = now.Readings.Single(r => r.Capability.Definition.Id == item.Definition.Id).Result;
                     if (!Good(state) || state.Current != original && state.Current != value) throw new IOException("当前档位与原值、试调值均不符，停止覆盖");
-                    var unrelated = Library.Copy(now);
-                    foreach (var r in before.Readings.Where(r => scope.Contains(r.Capability.Definition.Id))) unrelated.Readings[unrelated.Readings.FindIndex(x => x.Capability.Definition.Id == r.Capability.Definition.Id)] = Library.Copy(r);
-                    if (!ReaderSurvey.RecoveryMatches(before, unrelated)) throw new IOException("观察到图像预设/图像项以外的联动，需人工核查");
                     if (state.Current != original) {
                         var restored = await PresetWrite(now, draft, detected, original, "恢复图像预设对比", limit.Token);
                         if (!restored.Results.Single().Confirmed) throw new IOException("图像预设原档位未恢复确认");
@@ -104,6 +108,24 @@ public sealed partial class ReaderSurveyRunner
                         report.RecoveryObserved = Library.Copy(now);
                     }
                     if (!SameImageContext(before, now, scope)) throw new IOException("恢复图像预设后图像来源或范围变化，停止写回增益");
+                    if (!colour && scope.Contains("color-preset")) {
+                        var savedColor = before.Readings.Single(r => r.Capability.Definition.Id == "color-preset");
+                        var actualColor = now.Readings.Single(r => r.Capability.Definition.Id == "color-preset");
+                        if (!Good(actualColor.Result)) throw new IOException("色温预设恢复回读失败");
+                        if (actualColor.Result.Current != savedColor.Result.Current) {
+                            if (savedColor.Capability.Definition.VcpCode != 0x14) throw new IOException("色温预设不是已知标准通道，需人工核查");
+                            var colorItem = report.Features.Single(f => f.Definition.Id == "color-preset");
+                            if (!colorItem.Definition.Writable || colorItem.Backend != "standard-ddc") throw new IOException("色温来源未开放写入，需手动恢复");
+                            var colorDefinition = Library.Copy(colorItem.Definition); report.UseDeclaredStandardChoices(colorDefinition);
+                            colorDefinition.Writable = true; colorDefinition.WriteWhenWindowsHdr = false;
+                            var oldColor = new Reading { Capability = new() { Definition = colorDefinition }, Result = savedColor.Result }.Semantic(before.Device.WindowsHdrEnabled);
+                            var colorDraft = TrialPackage(report, colorDefinition);
+                            var restored = await TrialWrite(report, colorItem, actualColor.Capability, colorDefinition, oldColor, now, colorDraft, limit.Token);
+                            if (!restored.Results.Single().Confirmed) throw new IOException("原色温预设恢复未确认");
+                            now = await workspace.Capture(report.Device, limit.Token); report.RecoveryObserved = Library.Copy(now);
+                            if (!SameImageContext(before, now, scope)) throw new IOException("恢复色温后来源或模式变化，停止覆盖");
+                        }
+                    }
                     // Restore only captured, known standard image values if the restored mode allows it.
                     foreach (string id in (colour ? ColorScope.Skip(1) : new[] { "brightness", "contrast", "red-gain", "green-gain", "blue-gain" }.Where(scope.Contains))) {
                         var saved = before.Readings.Single(r => r.Capability.Definition.Id == id);
@@ -117,7 +139,7 @@ public sealed partial class ReaderSurveyRunner
                         report.RecoveryObserved = Library.Copy(now);
                         if (!SameImageContext(before, now, scope)) throw new IOException("恢复期间来源或范围变化，停止后续增益写入");
                     }
-                    if (!ReaderSurvey.RecoveryMatches(before, now)) throw new IOException("原值或联动状态未完全恢复");
+                    if (!ReaderSurvey.RecoveryMatches(before, now)) throw new IOException("原值或联动状态未完全恢复，需人工核查；未写入音量等无关项目");
                     probe.Restored = true; report.RecoveryRequired = false;
                 } catch (Exception ex) { item.WriteStatus = "恢复未确认"; item.Note += "；" + ex.Message; item.ErrorDetails = ex.ToString(); }
                 Library.Save("reader-surveys", report.Id, report);

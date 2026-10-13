@@ -22,6 +22,7 @@ public sealed partial class ReaderSurveyRunner
     public async Task Retry(ReaderSurvey report, string id, string? value, bool manualConfirmed, Action<string> progress, CancellationToken token)
     {
         var item = report.Features.Single(f => f.Definition.Id == id);
+        var previousTest = Library.Copy(item);
         // A new trial never replaces a pending original state.
         foreach (var pending in Library.All<ReaderSurvey>("reader-surveys").Where(r => r.RecoveryRequired && HardwareReports.SameDevice(r.Device, report.Device))) {
             var now = await workspace.Capture(report.Device, token);
@@ -33,7 +34,13 @@ public sealed partial class ReaderSurveyRunner
             if (!ReaderSurvey.RecoveryMatches(report.RecoveryBaseline, await workspace.Capture(report.Device, token))) throw new InvalidOperationException("先确认原设置已恢复，再测试。");
             report.RecoveryRequired = false;
         }
-        try { await TestFeature(report, item, value, manualConfirmed, progress, token); }
+        try {
+            await TestFeature(report, item, value, manualConfirmed, progress, token);
+            // Successful single-option retries add evidence; a failed retry still revokes this feature.
+            if (item.WriteVerified && previousTest.WriteVerified && !report.RecoveryRequired) {
+                item.TestedValues = previousTest.TestedValues.Concat(item.TestedValues).Distinct().ToList();
+            }
+        }
         finally {
             report.Status = report.RecoveryRequired ? "需要核查恢复" : "已完成";
             Library.Save("reader-surveys", report.Id, report);
@@ -64,7 +71,7 @@ public sealed partial class ReaderSurveyRunner
         // Colour/picture preset restoration observes and restores the known image scope.
         var origin = report.Rounds.FirstOrDefault()?.Readings.FirstOrDefault(r => r.Capability.Definition.Id == item.Definition.Id)?.Capability.Provider;
         if (!item.Definition.Writable && origin != "standard" && origin?.StartsWith("user.detected-", StringComparison.Ordinal) != true) { Skip("当前协议明确只读，请先更新写入定义"); return; }
-        if (item.Definition.Id is "color-preset" or "display-preset" && selectedValue == null && (origin == "standard" || origin?.StartsWith("user.detected-", StringComparison.Ordinal) == true)) {
+        if (item.Definition.Id is "color-preset" or "display-preset" && (origin == "standard" || origin?.StartsWith("user.detected-", StringComparison.Ordinal) == true)) {
             var fresh = await workspace.Capture(report.Device, token);
             var current = fresh.Readings.FirstOrDefault(r => r.Capability.Definition.Id == item.Definition.Id);
             var detected = report.Rounds.FirstOrDefault()?.Readings.FirstOrDefault(r => r.Capability.Definition.Id == item.Definition.Id)?.Capability;
@@ -72,7 +79,7 @@ public sealed partial class ReaderSurveyRunner
             if (detected != null && !DisplayWorkspace.SameCapability(detected, current.Capability)) { Skip("控制来源改变，请重新检测"); return; }
             item.ReadStatus = "读取已验证"; item.Samples.Add(Library.Copy(current.Result));
             int probes = item.Probes.Count; var note = item.Note;
-            await TestImagePresets(report, item, progress, token);
+            await TestImagePresets(report, item, progress, token, selectedValue);
             item.TestReason = item.WriteVerified ? "写入和恢复通过" : report.RecoveryRequired ? "未确认恢复；先按提示核查" : item.Probes.Count == probes
                 ? item.Note.StartsWith(note) && item.Note.Length > note.Length ? item.Note[note.Length..].TrimStart('；') : "当前条件不允许试调，请改变模式后重试"
                 : "写入未通过，可选择档位重试";

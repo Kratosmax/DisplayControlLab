@@ -280,6 +280,7 @@ public static partial class Packages
 }
 public sealed class PackageState
 {
+    public Dictionary<string, string> ControlPackageSelections { get; set; } = [];
     public Dictionary<string, string> VerifiedControlProfiles { get; set; } = [];
     public Dictionary<string, string> Bindings { get; set; } = [];
     public HashSet<string> Disabled { get; set; } = [];

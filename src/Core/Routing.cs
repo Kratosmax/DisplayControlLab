@@ -34,6 +34,7 @@ public static partial class Packages
             if (package.Kind == "plugin") s.TrustedHashes[package.Id] = ContentHash(package);
             if (selectControls) foreach (var control in package.Controls) s.FeatureRoutes[device.DevicePath + "|" + control.Id] = package.Id;
             if (package.Id.StartsWith("user.detected-", StringComparison.Ordinal) && package.Controls.All(c => c.Writable && c.Verification == "write-confirmed") && package.MenuHints.Count == 0) {
+                s.ControlPackageSelections[device.DevicePath] = package.Id;
                 s.VerifiedControlProfiles[device.DevicePath] = package.Id;
                 foreach (var control in package.Controls) s.FeatureRoutes[device.DevicePath + "|" + control.Id] = package.Id;
             }
@@ -43,7 +44,35 @@ public static partial class Packages
         if (s.DevicePackages.TryGetValue(device.DevicePath, out var ids)) ids.Remove(id);
         if (s.Bindings.GetValueOrDefault(device.DevicePath) == id) s.Bindings.Remove(device.DevicePath);
         if (s.VerifiedControlProfiles.GetValueOrDefault(device.DevicePath) == id) s.VerifiedControlProfiles.Remove(device.DevicePath);
+        if (s.ControlPackageSelections.GetValueOrDefault(device.DevicePath) == id) s.ControlPackageSelections.Remove(device.DevicePath);
     });
+    public static void SelectControlPackage(MonitorData device, string id)
+    {
+        var package = id == "standard" ? null : List().Single(p => p.Id == id);
+        if (package != null && (package.Kind != "protocol" || !package.Match.Matches(device))) throw new InvalidOperationException("请选择匹配当前显示器的协议包。");
+        Mutate(s => {
+            s.ControlPackageSelections[device.DevicePath] = id;
+            s.VerifiedControlProfiles.Remove(device.DevicePath);
+            if (package != null) {
+                if (!s.DevicePackages.TryGetValue(device.DevicePath, out var ids)) s.DevicePackages[device.DevicePath] = ids = [];
+                if (!ids.Contains(id)) ids.Add(id);
+                s.Disabled.Remove(id);
+                if (id.StartsWith("user.detected-", StringComparison.Ordinal) && package.Controls.All(c => c.Writable && c.Verification == "write-confirmed") && package.MenuHints.Count == 0)
+                    s.VerifiedControlProfiles[device.DevicePath] = id;
+            }
+            foreach (var key in s.FeatureRoutes.Keys.Where(k => k.StartsWith(device.DevicePath + "|", StringComparison.Ordinal)).ToList()) s.FeatureRoutes.Remove(key);
+            if (package != null) foreach (var control in package.Controls) s.FeatureRoutes[device.DevicePath + "|" + control.Id] = id;
+        });
+    }
+    public static HashSet<string>? ControlPackageFeatures(MonitorData device)
+    {
+        var state = State();
+        if (!state.ControlPackageSelections.TryGetValue(device.DevicePath, out var id)) return VerifiedControls(device);
+        if (id == "standard") return DeviceControl.Standard.Select(f => f.Id).ToHashSet();
+        var package = ForDevice(device).FirstOrDefault(p => p.Id == id);
+        if (package == null) return [];
+        return state.VerifiedControlProfiles.GetValueOrDefault(device.DevicePath) == id ? VerifiedControls(device) ?? [] : package.Controls.Select(f => f.Id).ToHashSet();
+    }
     public static HashSet<string>? VerifiedControls(MonitorData device)
     {
         var id = State().VerifiedControlProfiles.GetValueOrDefault(device.DevicePath);
@@ -91,7 +120,10 @@ public static class CapabilityCatalog
 {
     public static List<Capability> Resolve(MonitorData device)
     {
+        var state = Packages.State();
         var active = Packages.ForDevice(device);
+        var profile = state.ControlPackageSelections.GetValueOrDefault(device.DevicePath);
+        if (profile != null) active = active.Where(p => p.Id == profile).ToList();
         var all = DeviceControl.Standard.Select(f => new Capability { Definition = f }).ToList();
         foreach (var p in active) {
             string hash = Packages.ContentHash(p);
@@ -101,10 +133,9 @@ public static class CapabilityCatalog
         foreach (var p in Packages.List().Where(p => p.Match.Matches(device)))
             foreach (var hint in p.MenuHints.Where(h => all.All(c => c.Definition.Id != h.Id)))
                 all.Add(new() { Definition = new() { Id = hint.Id, Name = hint.Name, Group = hint.Group, MenuPath = hint.MenuPath, Description = hint.Description, HelpText = hint.HelpText, Readable = false, ValueType = "status" }, Provider = p.Id, Availability = "unadapted", Problem = "菜单已知，软件控制待适配" });
-        var state = Packages.State();
         return all.GroupBy(c => c.Definition.Id).Select(group => {
             var candidates = group.ToList();
-            string? chosen = state.FeatureRoutes.GetValueOrDefault(device.DevicePath + "|" + group.Key);
+            string? chosen = profile != null ? candidates.Any(c => c.Provider == profile) ? profile : "standard" : state.FeatureRoutes.GetValueOrDefault(device.DevicePath + "|" + group.Key);
             if (chosen == null && candidates.Any(c => c.Provider == "standard")) {
                 var preferred = active.Where(p => p.OverridesStandard.Contains(group.Key) && candidates.Any(c => c.Provider == p.Id)).ToList();
                 if (preferred.Count == 1 && candidates.Count == 2) chosen = preferred[0].Id;

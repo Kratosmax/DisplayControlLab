@@ -58,7 +58,7 @@ public sealed class Reading
         if (id != null) return rule!.Labels.GetValueOrDefault(id, id);
         if (VcpRecognition.Display(f, Result) is { } recognized) return recognized;
         if (f.ValueType == "boolean" && Result.Current is 0 or 1) return Result.Current == 0 ? "关闭" : "开启";
-        return f.ValueType is "enum" or "status" ? "未识别状态（编码 " + Result.Current + "）" : Result.Current + (f.Unit.Length == 0 ? "" : " " + f.Unit);
+        return f.ValueType is "enum" or "status" ? $"名称未确认（编码 {Result.Current} / 0x{Result.Current:X2}）" : Result.Current + (f.Unit.Length == 0 ? "" : " " + f.Unit);
     }
     public string Semantic(bool? hdr)
     {

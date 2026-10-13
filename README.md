@@ -2,7 +2,7 @@
 
 <img src="assets/branding/displaycontrol.png" width="96" height="96" alt="DisplayControlLab：前屏色环与后屏色谱双屏图标" />
 
-Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置，私有协议与专用驱动插件由用户按需安装。当前版本 0.4.0。控制器与读取器共用工作区和用户资料。
+Windows 显示器控制器与读取器，使用 .NET 8 / WPF。标准 DDC 内置，私有协议与专用驱动插件由用户按需安装。当前版本 0.5.0。控制器与读取器共用工作区和用户资料。
 
 ## 下载与升级
 

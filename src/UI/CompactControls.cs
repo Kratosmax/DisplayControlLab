@@ -6,6 +6,29 @@ using MonitorInspector;
 namespace DisplayControl.UI;
 public partial class WorkspaceWindow
 {
+    void ControlPackagePicker()
+    {
+        var target = Library.Copy(device!);
+        var packages = Packages.List().Where(p => p.Kind == "protocol" && p.Match.Matches(target)).ToList();
+        var state = Packages.State();
+        string? selected = state.ControlPackageSelections.GetValueOrDefault(target.DevicePath) ?? state.VerifiedControlProfiles.GetValueOrDefault(target.DevicePath);
+        var choices = packages.Select(p => new { Id = p.Id, Name = p.Name + " · " + p.Version }).Prepend(new { Id = "standard", Name = "内置标准协议" }).ToList();
+        string name = choices.FirstOrDefault(p => p.Id == selected)?.Name ?? (selected == null ? "选择统一协议包" : "所选协议包已不可用");
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var options = new StackPanel { Visibility = Visibility.Collapsed };
+        var select = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = selected ?? "standard", MinHeight = 36, Margin = new Thickness(0, 0, 0, 8) };
+        options.Children.Add(Text("统一切换当前显示器的功能来源。未覆盖的功能不会混入控制页。", 13, "#64748C"));
+        options.Children.Add(select);
+        options.Children.Add(AsyncButton("使用此协议包", async token => {
+            if (select.SelectedValue is not string id) return;
+            if (writingDevices.Count > 0 || pendingWrites.Count > 0 || modeReloading.Count > 0) { Say("请等当前设置完成后再切换协议包。"); return; }
+            Packages.SelectControlPackage(target, id); deviceSnapshots.Remove(target.DevicePath); snapshot = null;
+            await RefreshValues(token); Say("已统一切换协议包，当前状态已重新读取。");
+        }, true));
+        options.Children.Add(Button("管理协议包", () => Navigate("packages")));
+        panel.Children.Add(Button("协议包：" + name, () => options.Visibility = options.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible));
+        panel.Children.Add(options); body.Children.Add(panel);
+    }
     void SetControlView(bool compact)
     {
         compactControls = compact;

@@ -51,12 +51,17 @@ public partial class WorkspaceWindow
         string Value(ControlDefinition definition, ControlResult? result, bool? hdr) => result == null ? "未记录"
             : new Reading { Capability = new() { Definition = definition }, Result = result }.Display(hdr)
                 + (result.Current.HasValue ? $"（原始数值 {result.Current} / 编码 0x{result.Current:X2}）" : "");
-        var content = Section("把“" + feature.Definition.Name + "”改回原来的设置", report.Device.DisplayName + " · 检测已暂停，等待你确认恢复。");
-        var originalName = original == null ? "" : new Reading { Capability = new() { Definition = before?.Capability.Definition ?? feature.Definition }, Result = original }.Display(report.Device.WindowsHdrEnabled);
+        var content = Section("检查“" + feature.Definition.Name + "”及相关设置是否恢复", report.Device.DisplayName + " · 暂停试写，仍可读取和命名。");
+        if (baseline != null && report.RecoveryObserved is { } observed) {
+            var differences = Comparison.Between(baseline, observed);
+            if (differences.Count > 0) content.Children.Add(Text("最近核查仍有变化：" + string.Join("、", differences.Select(d => d.Feature)) + "。该项本身恢复，不代表相关设置都已恢复。", 13, "#9A6612"));
+        }
+        var originalName = original == null ? "" : new Reading { Capability = new() { Definition = feature.Definition }, Result = original }.Display(report.Device.WindowsHdrEnabled);
         bool known = original?.Status == "ok" && original.Current.HasValue && !new[] { "编码", "未识别", "未知", "待查", "候选" }.Any(originalName.Contains);
         content.Children.Add(Text(known ? "原来的设置：" + originalName : original?.Current == null
             ? "没有记下原来的设置，暂时无法确认恢复。请先停止试调。"
-            : "软件没认出原选项的名称，需要你按检测前的设置改回。", 14, "#9A6612"));
+            : $"检测前的设置：编码 0x{original.Current:X2}（数值 {original.Current}）。名称尚未确认，可展开“技术详情”查看记录。", 14, "#9A6612"));
+        content.Children.Add(Text("试调后未能确认所有设置恢复，已暂停后续试写。下面的检查按钮只读取状态。", 13, "#64748C"));
         content.Children.Add(Text(string.IsNullOrWhiteSpace(feature.Definition.MenuPath)
             ? $"1. 用显示器按键打开菜单，把“{feature.Definition.Name}”相关选项改回检测前的设置。"
             : $"1. 用显示器按键打开“{feature.Definition.MenuPath}”，改回上面的设置。", 14));
@@ -100,7 +105,18 @@ public partial class WorkspaceWindow
             report.RecoveryObserved = Library.Copy(current);
             if (!ReaderSurvey.RecoveryMatches(report.RecoveryBaseline, current)) {
                 Library.Save("reader-surveys", report.Id, report);
-                feedback.Text = current.Complete ? "还没确认恢复。请核对原来的设置；不记得就先停止试调。" : "没读到完整状态，请关闭显示器菜单后重试。";
+                var differences = report.RecoveryBaseline == null ? [] : Comparison.Between(report.RecoveryBaseline, current);
+                var pending = differences.Take(3).Select(d => {
+                    var item = report.Features.FirstOrDefault(f => f.Definition.Name == d.Feature);
+                    var old = report.RecoveryBaseline?.Readings.FirstOrDefault(r => r.Capability.Definition.Name == d.Feature);
+                    var now = current.Readings.FirstOrDefault(r => r.Capability.Definition.Name == d.Feature);
+                    string Display(Reading? reading) => reading == null ? "未读到" : new Reading {
+                        Capability = new() { Definition = item?.Definition ?? reading.Capability.Definition }, Result = reading.Result }.Display(current.Device.WindowsHdrEnabled);
+                    return $"{d.Feature}：现在 {Display(now)}，需要恢复为 {Display(old)}";
+                });
+                feedback.Text = current.Complete ? "还没确认恢复。" + (differences.Count > 0 ? "\n" + string.Join("\n", pending)
+                    + (differences.Count > 3 ? $"\n另有 {differences.Count - 3} 项，请展开技术详情查看。" : "") : "设备或HDR模式与检测前不同，请确认连接和系统HDR。")
+                    : "没读到完整状态，请关闭显示器菜单后重试。";
                 if (report.RecoveryBaseline != null) foreach (var difference in Comparison.Between(report.RecoveryBaseline, current))
                     technical.Children.Add(Text($"本次检查：{difference.Feature} · {difference.Before} → {difference.After}\n{difference.Evidence}", 13));
                 Say(feedback.Text); return;
@@ -151,9 +167,9 @@ public partial class WorkspaceWindow
         check(details.Visibility == Visibility.Visible && text.Contains("原始数值 12") && text.Contains("音量") && text.Contains("原始数值 5"), "点击待核查行展开真实原值和保存的联动差异，优先使用色温探测操作记录");
         var guide = (StackPanel)details.Children[0];
         var defaultText = string.Join("\n", guide.Children.OfType<TextBlock>().Select(t => t.Text));
-        check(defaultText.Length < 350 && !defaultText.Contains("编码") && !defaultText.Contains("System.")
-            && Children(guide).OfType<Expander>().Single().IsExpanded == false, "核查默认只显示简短操作，编码/联动/报错默认折叠");
-        check(defaultText.Contains("显示器按键") && defaultText.Contains("软件没认出") && Children(guide).OfType<Button>().Any(b => Equals(b.Content, "我已改回，检查一下")), "未知名称直说，提供就地只读检查按钮，无需取消勾选再找检测入口");
+        check(defaultText.Length < 450 && !defaultText.Contains("System.")
+            && Children(guide).OfType<Expander>().Single().IsExpanded == false, "核查默认只显示简短操作与目标值，联动/报错默认折叠");
+        check(defaultText.Contains("显示器按键") && defaultText.Contains("名称尚未确认") && Children(guide).OfType<Button>().Any(b => Equals(b.Content, "我已改回，检查一下")), "未知名称直说并显示记录目标，提供就地只读检查按钮");
         Children(guide).OfType<Button>().Single(b => Equals(b.Content, "不记得原来的设置")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         check(guide.Children.OfType<TextBlock>().Any(t => t.Text.Contains("先停止试调")), "不记得原选项时提供明确反馈，不要求猜码或恢复出厂");
         table.SelectedItem = table.Items[0]; table.UpdateLayout();
@@ -200,6 +216,34 @@ public partial class WorkspaceWindow
         check(!Library.Get<ReaderSurvey>("reader-surveys", recovery.Id).RecoveryRequired && uiMessage.Contains("已确认恢复"), "按钮只读核查完整基线匹配后保存确认状态");
         check(fixture.Requests.Count > 0 && fixture.Requests.All(r => r.Action == "read"), "核查按钮仅发送读取，不试写、不恢复设置、不重新扫描");
         Library.Delete("reader-surveys", recovery.Id);
+        var pictureBaseline = await workspace.Capture(sample.Device, default);
+        var pictureReading = pictureBaseline.Readings.Single(r => r.Capability.Definition.Id == "display-preset");
+        var pictureFeature = new SurveyFeature { Definition = Library.Copy(pictureReading.Capability.Definition), WriteStatus = "恢复未确认" };
+        pictureFeature.Definition.Rules = [new() { MatchAnyMaximum = true, Values = new() { ["code-00"] = 0, ["code-03"] = 3 }, Labels = new() { ["code-00"] = "标准", ["code-03"] = "电影" } }];
+        bool hadPicture = fixture.Values.TryGetValue("display-preset", out uint pictureOriginal);
+        pictureReading.Result.Current = 3;
+        pictureReading.Capability.Definition.Rules.Clear();
+        var pictureReport = new ReaderSurvey { Device = pictureBaseline.Device, RecoveryRequired = true, RecoveryBaseline = pictureBaseline, Features = [pictureFeature] };
+        var pictureGuide = RecoveryGuide(pictureReport, pictureFeature);
+        pictureGuide.Background = Brushes.White;
+        pictureGuide.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/DisplayControl.UI;component/Theme.xaml", UriKind.Relative) });
+        check(Children(pictureGuide).OfType<TextBlock>().Any(t => t.Text.Contains("原来的设置：电影")), "恢复提示优先采用用户命名，即使原基线没有选项标签");
+        fixture.Values["display-preset"] = 0;
+        var pictureFeedback = Text(""); var pictureDetails = new StackPanel();
+        await VerifyRecovery(pictureReport, pictureFeedback, pictureDetails, default);
+        check(pictureReport.RecoveryRequired && pictureFeedback.Text.Contains("现在 标准") && pictureFeedback.Text.Contains("需要恢复为 电影"),
+            "恢复失败直接显示当前与目标名称，不仅笼统要求核查");
+        pictureGuide.Children.Add(pictureFeedback);
+        pictureGuide.Measure(new Size(620, double.PositiveInfinity)); pictureGuide.Arrange(new Rect(0, 0, 620, pictureGuide.DesiredSize.Height)); pictureGuide.UpdateLayout();
+        var pictureBitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(620, (int)Math.Ceiling(pictureGuide.ActualHeight), 96, 96, PixelFormats.Pbgra32); pictureBitmap.Render(pictureGuide);
+        var pictureEncoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); pictureEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(pictureBitmap));
+        using (var output = System.IO.File.Create(System.IO.Path.Combine(directory, "picture-recovery-named.png"))) pictureEncoder.Save(output);
+        fixture.Values["display-preset"] = 3;
+        await VerifyRecovery(pictureReport, pictureFeedback, pictureDetails, default);
+        check(!pictureReport.RecoveryRequired, "画面预设改回记录原值后解除恢复门禁");
+        fixture.Values["display-preset"] = pictureOriginal;
+        if (!hadPicture) fixture.Values.Remove("display-preset");
+        Library.Delete("reader-surveys", pictureReport.Id);
     }
 
     static IEnumerable<DataGridCell> VisualCells(DependencyObject node)

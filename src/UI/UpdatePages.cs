@@ -66,7 +66,7 @@ public partial class WorkspaceWindow
             updatePanel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = updateProgress.Percent ?? 0, IsIndeterminate = updateProgress.Percent == null, Height = 6, Margin = new Thickness(0, 0, 0, 14), Foreground = Brush("#3D5DD8") });
         }
         var actions = Actions(); var check = Button("检查更新", () => _ = CheckUpdates(UpdateSettings.Load(), false)); check.IsEnabled = updateTask == null; actions.Children.Add(check);
-        if (availableUpdate != null && updateTask == null) {
+        if (availableUpdate != null && updateTask == null && !installPrepared) {
             var install = Button("更新并重启", () => _ = InstallUpdate(), true); install.IsEnabled = updater.CanInstall; actions.Children.Add(install);
             actions.Children.Add(Button("稍后", () => { availableUpdate = null; updateMessage = "已推迟本次更新，可随时重新检查。"; RenderUpdatePanel(); }));
             actions.Children.Add(Button("跳过此版本", () => { var s = UpdateSettings.Load(); s.SkippedVersion = availableUpdate.Version.ToString(3); s.Save(); availableUpdate = null; updateMessage = "已跳过此版本，手动检查仍可查看。"; RenderUpdatePanel(); }));
@@ -89,23 +89,38 @@ public partial class WorkspaceWindow
         catch (Exception ex) { updateMessage = "检查失败：" + ex.Message; if (!background) Say(updateMessage); }
         finally { updateTask.Dispose(); updateTask = null; RenderUpdatePanel(); }
     }
-    async Task InstallUpdate()
+    async Task InstallUpdate(Func<IProgress<UpdateProgress>, CancellationToken, Task<PreparedUpdate>>? prepare = null,
+        Action<PreparedUpdate>? launch = null, Action? close = null)
     {
-        if (updateTask != null || availableUpdate == null || simulation) return;
+        if (updateTask != null || installPrepared || availableUpdate == null || simulation && prepare == null) return;
         if (active != null || writingDevices.Count > 0 || pendingWrites.Count > 0 || modeReloading.Count > 0) { Say("请等待当前显示器操作完成，再更新软件。"); return; }
-        if (!Confirm("将下载并验证更新，然后退出当前工具。请先退出另一工具；更新器不会强制关闭任何程序，60秒内仍有工具运行会取消替换。用户资料保持不变。继续？")) return;
-        updateTask = new CancellationTokenSource(); updateMessage = "正在准备更新，尚未修改安装目录。"; RenderUpdatePanel();
+        if (prepare == null && !Confirm("将下载并验证更新，然后退出当前工具。请先退出另一工具；更新器不会强制关闭任何程序，60秒内仍有工具运行会取消替换。用户资料保持不变。继续？")) return;
+        var task = new CancellationTokenSource(); updateTask = task; updateProgress = null;
+        updateMessage = "正在下载更新，完成后自动重启。"; RenderUpdatePanel();
+        void Trace(string stage) {
+            try {
+                var path = Path.Combine(Library.Folder("logs"), "update-ui.log");
+                if (File.Exists(path) && new FileInfo(path).Length > 262144) File.Move(path, path + ".old", true);
+                File.AppendAllText(path, $"{DateTimeOffset.Now:O} {stage}{Environment.NewLine}");
+            } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
         try {
-            var prepared = await updater.Prepare(availableUpdate, checkedNetwork ?? UpdateSettings.Load(), new Progress<UpdateProgress>(p => { if (updateProgress == p) return; updateProgress = p; RenderUpdatePanel(); }), updateTask.Token);
+            Trace("prepare-start");
+            var progress = new Progress<UpdateProgress>(p => { if (updateTask != task || installPrepared || updateProgress == p) return; updateProgress = p; RenderUpdatePanel(); });
+            var prepared = await (prepare?.Invoke(progress, task.Token) ?? updater.Prepare(availableUpdate, checkedNetwork ?? UpdateSettings.Load(), progress, task.Token));
+            task.Token.ThrowIfCancellationRequested(); Trace("prepare-complete");
             if (active != null || writingDevices.Count > 0 || pendingWrites.Count > 0 || modeReloading.Count > 0) throw new IOException("下载期间有显示器操作，请完成后重新更新");
             if (draft != null) SaveDraft();
-            updater.Launch(prepared, reader); installPrepared = true; updateMessage = "已交给更新器，等待工具退出。";
+            if (launch != null) launch(prepared); else updater.Launch(prepared, reader);
+            installPrepared = true; updateProgress = null; updateMessage = "更新已就绪，正在退出并重启…";
+            Trace("launcher-started");
+            if (close != null) close(); else Close();
+            Trace("close-requested");
         } catch (OperationCanceledException) { updateMessage = "更新已取消，原安装未修改。"; }
-        catch (Exception ex) { updateMessage = "准备更新失败，原安装未修改：" + ex.Message; Say(updateMessage); }
-        finally { updateTask.Dispose(); updateTask = null; RenderUpdatePanel(); }
-        if (installPrepared) Close();
+        catch (Exception ex) { updateMessage = "准备更新失败，原安装未修改：" + ex.Message; Say(updateMessage); Trace("failure: " + ex); }
+        finally { task.Dispose(); updateTask = null; updateProgress = null; if (!installPrepared) RenderUpdatePanel(); }
     }
-    void RunUpdateUiTests(string directory, Action<bool, string> check)
+    async Task RunUpdateUiTests(string directory, Action<bool, string> check)
     {
         IEnumerable<DependencyObject> Descendants(DependencyObject node) { yield return node; foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>()) foreach (var descendant in Descendants(child)) yield return descendant; }
         Navigate("settings");
@@ -133,6 +148,21 @@ public partial class WorkspaceWindow
         updateTask = new CancellationTokenSource(); RenderUpdatePanel();
         check(!Descendants(updatePanel!).OfType<Button>().Single(b => Equals(b.Content, "检查更新")).IsEnabled && Descendants(updatePanel!).OfType<Button>().Any(b => Equals(b.Content, "取消下载或检查")), "更新任务防重复提交且可取消");
         updateTask.Dispose(); updateTask = null; updateProgress = null; RenderUpdatePanel();
+        int launched = 0, closed = 0;
+        var ready = new PreparedUpdate("fixture.zip", "fixture.json", "fixture.exe");
+        var download = new TaskCompletionSource<PreparedUpdate>();
+        var install = InstallUpdate((p, t) => { p.Report(new("准备安装", "测试线路", 100)); return download.Task; }, _ => launched++, () => closed++);
+        check(updateTask != null, "更新下载期间保持唯一任务");
+        await InstallUpdate((p, t) => Task.FromResult(ready), _ => launched++, () => closed++);
+        download.SetResult(ready); await install;
+        await System.Windows.Threading.Dispatcher.Yield(); RenderUpdatePanel();
+        check(launched == 1 && closed == 1 && installPrepared && updateProgress == null, "首次更新完成自动交接及退出，迟到进度不覆盖终态");
+        check(!Descendants(updatePanel!).OfType<Button>().Any(b => Equals(b.Content, "更新并重启")), "交接后不再显示第二次更新按钮");
+        Capture(Path.Combine(directory, "updates-handoff.png"), "settings", 1040, 700, 1);
+        installPrepared = false;
+        await InstallUpdate((p, t) => Task.FromException<PreparedUpdate>(new IOException("测试下载失败")), _ => launched++, () => closed++);
+        check(launched == 1 && closed == 1 && updateTask == null && updateProgress == null && updateMessage.Contains("测试下载失败"), "下载失败不启动更新器且清除过期进度，可重试");
+        RenderUpdatePanel();
         Descendants(updatePanel!).OfType<Button>().Single(b => Equals(b.Content, "跳过此版本")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         check(availableUpdate == null && UpdateSettings.Load().SkippedVersion == "0.4.0", "跳过版本持久化");
         updateMessage = "检查失败：所有更新线路均失败。GitHub 直连：网络超时";

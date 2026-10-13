@@ -19,9 +19,23 @@ public partial class WorkspaceWindow
         if (reader) check(advancedNavigation?.IsExpanded == false, "读取器默认折叠高级工具");
         check(navigationButtons.All(b => (string)b.Tag is not ("snapshots" or "experiments")), "删除重复的快照与分段实验导航");
         Capture(Path.Combine(directory, "reader-start.png"), "guided", 1040, 700, 1.25);
+        var manualSection = Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "手动查找菜单变化（自动检测没找到时）"));
+        manualSection.IsExpanded = true;
         await ReadAndCompare(default); var id = ReadSession!.Id;
+        check(Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "手动查找菜单变化（自动检测没找到时）")).IsExpanded,
+            "手动查找菜单展开后，首次读取重建页面仍保持展开");
         fixture.Values["brightness"] = value == 85 ? 84u : 85u;
         await ReadAndCompare(default);
+        check(Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "手动查找菜单变化（自动检测没找到时）")).IsExpanded,
+            "手动菜单连续读取不自动折叠");
+        var readingsSection = Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "查看本次所有读数"));
+        readingsSection.IsExpanded = true; ShowPage();
+        check(Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "查看本次所有读数")).IsExpanded,
+            "嵌套折叠区手动展开状态保留");
+        Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "手动查找菜单变化（自动检测没找到时）")).IsExpanded = false;
+        ShowPage();
+        check(!Descendants(body).OfType<Expander>().Single(e => Equals(e.Header, "手动查找菜单变化（自动检测没找到时）")).IsExpanded,
+            "用户主动收起后也保持收起");
         var saved = Library.Get<Experiment>("experiments", id);
         check(saved.Segments.Count == 2 && saved.Compare(0, 1).Any(d => d.Feature == "亮度"), "两次点击自动保存并找出菜单变化");
         check(fixture.Requests.All(r => r.Action == "read"), "手动对比全程仅读取，不写硬件");
@@ -40,6 +54,10 @@ public partial class WorkspaceWindow
         for (int i = 0; active != null && i < 3000; i++) await Task.Delay(10);
         check(active == null && uiMessage.Contains("检测完成"), "真实自动检测按钮完成并反馈结果");
         var survey = Library.All<ReaderSurvey>("reader-surveys").First(r => HardwareReports.SameDevice(r.Device, device!));
+        openedFeaturePanels[device!.DevicePath] = "color-preset";
+        ShowPage();
+        check(Descendants(body).OfType<TextBlock>().Any(t => t.Text == "测试“色温预设”"), "页面重建保留正在打开的色温选项面板");
+        openedFeaturePanels.Remove(device.DevicePath);
         var resultTable = Descendants(body).OfType<DataGrid>().First();
         check(resultTable.Columns.Any(c => Equals(c.Header, "当前状态"))
             && resultTable.Items.Cast<object>().Any(row => (row.GetType().GetProperty("Current")?.GetValue(row) as string)?.Contains("暖色（厂商候选）") == true), "检测结果复用状态名称，AOC色温显示厂商候选而非猜测K值");
@@ -132,6 +150,9 @@ public partial class WorkspaceWindow
             var recoveryDetails = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 12, 0, 0) };
             ConfigureRecoveryRows(table, report, recoveryDetails);
             AddFeatureTestColumn(table, report, recoveryDetails);
+            if (openedFeaturePanels.TryGetValue(report.Device.DevicePath, out var openedId) && report.Features.FirstOrDefault(f => f.Definition.Id == openedId) is { } opened) {
+                recoveryDetails.Children.Add(NeedsRecovery(report, opened) ? RecoveryGuide(report, opened) : FeatureTestPanel(report, opened)); recoveryDetails.Visibility = Visibility.Visible;
+            }
             results.Children.Add(recoveryDetails);
             table.Columns[0].MinWidth = 140; table.Columns[1].MinWidth = 90; table.Columns[2].MinWidth = 105; table.Columns[3].MinWidth = 180; table.Columns[4].MinWidth = 90;
             foreach (DataGridTextColumn column in table.Columns.OfType<DataGridTextColumn>()) column.ElementStyle = new Style(typeof(TextBlock)) {
@@ -167,6 +188,7 @@ public partial class WorkspaceWindow
     {
         if (device == null) { target.Children.Add(Card(Section("先连接显示器", "检查连接线和电源，再点左侧“刷新设备”。"))); return; }
         var session = ReadSession;
+        var displayReport = Library.All<ReaderSurvey>("reader-surveys").FirstOrDefault(r => HardwareReports.SameDevice(r.Device, device));
         var samples = session?.Segments.Where(s => !s.Transition).SelectMany(s => s.Rounds).Where(s => s.Complete).ToList() ?? [];
         var intro = Section(samples.Count == 0 ? "① 先读取一次" : "② 改一项菜单，再读取", samples.Count == 0
             ? $"已选择：{device.DisplayName}。点击下方按钮，记住显示器现在的状态。"
@@ -189,6 +211,12 @@ public partial class WorkspaceWindow
             var summary = Section(samples.Count == 1 ? "起点已记住，可以去改菜单了" : "本次读取结果", $"{latest.Time:HH:mm:ss} · 读到 {ok} 项 · {latest.Readings.Count - ok} 项未读到 · 已自动保存");
             if (samples.Count > 1) {
                 var differences = Comparison.Between(samples[^2], latest);
+                foreach (var difference in differences) {
+                    var old = samples[^2].Readings.FirstOrDefault(r => r.Capability.Definition.Name == difference.Feature);
+                    var current = latest.Readings.FirstOrDefault(r => r.Capability.Definition.Name == difference.Feature);
+                    if (old != null) difference.Before = ReaderDisplay(old, samples[^2], displayReport);
+                    if (current != null) difference.After = ReaderDisplay(current, latest, displayReport);
+                }
                 summary.Children.Add(Text(differences.Count == 0 ? "没有观察到变化" : $"发现 {differences.Count} 项变化", 20, "#3D5DD8"));
                 if (differences.Count == 0) summary.Children.Add(Text("这项菜单可能没有提供可读取的状态，或需要专用协议。反复读取不一定能找到。", 13, "#64748C"));
                 else {
@@ -199,7 +227,7 @@ public partial class WorkspaceWindow
             }
             target.Children.Add(Card(summary));
             var details = new StackPanel();
-            foreach (var reading in latest.Readings) details.Children.Add(Text(reading.Capability.Definition.Name + "：" + reading.Display(latest.Device.WindowsHdrEnabled), 13));
+            foreach (var reading in latest.Readings) details.Children.Add(Text(reading.Capability.Definition.Name + "：" + ReaderDisplay(reading, latest, displayReport), 13));
             target.Children.Add(new Expander { Header = "查看本次所有读数", Content = details, Margin = new Thickness(0, 0, 0, 18) });
         }
         var history = new StackPanel();
@@ -209,6 +237,17 @@ public partial class WorkspaceWindow
         }
         if (history.Children.Count == 0) history.Children.Add(Text("还没有保存的记录。完成一次读取后会自动保存。", 13, "#64748C"));
         target.Children.Add(new Expander { Header = "以前的读取记录", Content = history });
+    }
+
+    string ReaderDisplay(Reading reading, Snapshot sample, ReaderSurvey? report)
+    {
+        var item = report?.Features.FirstOrDefault(f => f.Definition.Id == reading.Capability.Definition.Id);
+        var origin = report?.Rounds.FirstOrDefault()?.Readings.FirstOrDefault(r => r.Capability.Definition.Id == reading.Capability.Definition.Id)?.Capability;
+        var view = Library.Copy(reading);
+        if (item != null && origin != null && DisplayWorkspace.SameCapability(origin, reading.Capability)) view.Capability.Definition = Library.Copy(item.Definition);
+        string label = view.Display(sample.Device.WindowsHdrEnabled);
+        return view.Capability.Definition.ValueType is "enum" or "boolean" && view.Result.Status == "ok" && view.Result.Current.HasValue
+            ? label + $" · {view.Result.Current} / 0x{view.Result.Current:X2}" : label;
     }
 
     async Task ReadAndCompare(CancellationToken token)

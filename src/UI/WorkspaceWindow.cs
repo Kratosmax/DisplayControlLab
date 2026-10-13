@@ -25,6 +25,15 @@ public partial class WorkspaceWindow : Window
     readonly StackPanel body = new();
     readonly ScrollViewer contentScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     string renderContext = "";
+    readonly Dictionary<string, bool> expandedSections = [];
+    IEnumerable<(Expander Section, string Key)> Expanders(DependencyObject node, string path = "")
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>()) {
+            string key = child is Expander expander ? path + "/" + expander.Header : path;
+            if (child is Expander section) yield return (section, key);
+            foreach (var nested in Expanders(child, key)) yield return nested;
+        }
+    }
     readonly TextBlock heading = new();
     readonly TextBlock subtitle = new();
     readonly TextBlock status = new();
@@ -144,6 +153,7 @@ public partial class WorkspaceWindow : Window
     }
     async Task Run(Func<CancellationToken, Task> action)
     {
+        if (updateTask != null || installPrepared) { Say("正在更新，请稍候再操作显示器。"); return; }
         if (active != null) { Say("已有任务进行中，可取消后再操作。"); return; }
         active = new CancellationTokenSource(); devices.IsEnabled = false; body.IsEnabled = false;
         try { await action(active.Token); }
@@ -173,6 +183,7 @@ public partial class WorkspaceWindow : Window
     }
     void ShowPage()
     {
+        foreach (var (section, key) in Expanders(body)) expandedSections[renderContext + "|" + key] = section.IsExpanded;
         string context = $"{device?.DevicePath}|{page}|{group}|{compactControls}";
         double offset = context == renderContext ? contentScroll.VerticalOffset : 0;
         renderContext = context;
@@ -187,11 +198,15 @@ public partial class WorkspaceWindow : Window
         banner.Text = simulation ? "模拟工作区：这里的值和操作不代表真实显示器支持。" : "标准功能内置；私有功能按需安装。读取失败不等于设备不支持。";
         if (reader && page == "guided" && !simulation) banner.Text = "发现 → 标准 / 厂商识别 → 对比验证 → 生成适配包。结果自动保存；启用试调并确认后才会修改允许的图像项。";
         switch (page) { case "guided": GuidedPage(); break; case "control": ControlsPage(); break; case "check": CheckPage(); break; case "presets": PresetsPage(); break; case "history": HistoryPage(); break; case "packages": PackagesPage(); break; case "workbench": WorkbenchPage(); break; default: SettingsPage(); break; }
+        foreach (var (section, key) in Expanders(body)) {
+            if (expandedSections.TryGetValue(context + "|" + key, out bool expanded)) section.IsExpanded = expanded;
+        }
         contentScroll.UpdateLayout(); contentScroll.ScrollToVerticalOffset(offset);
     }
     void ControlsPage()
     {
         if (device == null) { body.Children.Add(Card(Text("尚未找到显示器。检查连接后刷新；不会自动选择历史离线设备执行设置。"))); return; }
+        ControlPackagePicker();
         var tabs = Actions(); foreach (var (id, label) in new[] { ("common", "常用"), ("image", "图像"), ("game", "游戏"), ("audio", "声音"), ("connection", "连接与设备"), ("all", "全部功能") }) { string selected = id; tabs.Children.Add(Button(label, () => { group = selected; ShowPage(); }, id == group)); }
         tabs.Children.Add(AsyncButton("刷新状态", t => RefreshValues(t)));
         tabs.Children.Add(Button("详细视图", () => SetControlView(false), !compactControls));
@@ -214,7 +229,7 @@ public partial class WorkspaceWindow : Window
     {
         target.Children.Clear(); if (device == null) return;
         var capabilities = snapshot?.Device.DevicePath == device.DevicePath && snapshot.Readings.Count > 0 ? snapshot.Readings.Select(r => r.Capability).ToList() : workspace.Backend.Capabilities(device);
-        if (!reader && Packages.VerifiedControls(device) is { } verified) capabilities = capabilities.Where(c => verified.Contains(c.Definition.Id)).ToList();
+        if (!reader && Packages.ControlPackageFeatures(device) is { } verified) capabilities = capabilities.Where(c => verified.Contains(c.Definition.Id)).ToList();
         var visible = capabilities.Where(c => (group == "all" || group == "common" && (c.Definition.Id is "brightness" or "contrast" or "hdr-preset" or "color-preset" || Favorites().Contains(c.Definition.Id)) || group == c.Definition.Group || group == "connection" && c.Definition.Group is "device" or "information" or "osd") && (search.Text.Length == 0 || (c.Definition.Name + c.Definition.Id + c.Provider).Contains(search.Text, StringComparison.OrdinalIgnoreCase)));
         var items = visible.OrderBy(c => c.Definition.Id == "hdr-preset" ? 0 : c.Definition.Id == "color-preset" ? 2 : 1).ToList();
         if (compactControls && group == "common") items = items.OrderBy(c => c.Definition.Id switch { "brightness" => 0, "contrast" => 1, "color-preset" => 2, "hdr-preset" => 3, _ => 4 }).ToList();
@@ -241,7 +256,6 @@ public partial class WorkspaceWindow : Window
         bool recovering = device != null && modeReloading.Contains(device.DevicePath);
         var p = FeatureSection(f, dense); var current = Text(recovering ? "正在恢复显示状态…" : r?.Display(snapshot!.Device.WindowsHdrEnabled) ?? "等待检查…", 17, "#3D5DD8"); live[f.Id] = current; p.Children.Add(current);
         if (!compact) p.Children.Add(Text($"{(c.Provider == "standard" ? "标准 DDC" : c.Provider)} · {c.Version} · {(f.Writable ? "声明可写" : "只读")} · {(r == null ? "未检查" : r.Time.ToString("HH:mm:ss"))}", 12, "#64748C"));
-        if (c.Candidates.Count > 1) { var choose = new ComboBox { ItemsSource = c.Candidates, SelectedItem = c.Problem.Length == 0 ? c.Provider : null, MinHeight = 32 }; choose.SelectionChanged += (_, _) => { if (choose.SelectedItem is string id) { Packages.Choose(device!, f.Id, id); snapshot = null; ShowPage(); _ = Run(t => RefreshValues(t)); } }; p.Children.Add(choose); }
         string problem = c.Problem;
         if (problem.Length == 0) problem = HdrSafety.Problem(currentSafety, HdrSafety.ProtectedId(currentSafety, f), snapshot);
         if (problem.Length == 0) problem = DisplayWorkspace.Conditions(f.WritableWhen, snapshot);

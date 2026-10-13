@@ -43,6 +43,7 @@ public partial class WorkspaceWindow
     }
     void QueueControlWrite(Capability capability, string value)
     {
+        if (updateTask != null || installPrepared) { Say("正在更新，请稍候再操作显示器。"); return; }
         if (device == null) return;
         if (modeReloading.Contains(device.DevicePath)) { Say("显示模式正在恢复，暂不发送设置。"); return; }
         var target = Library.Copy(deviceSnapshots.GetValueOrDefault(device.DevicePath)?.Device ?? device); string key = target.DevicePath + "|" + capability.Definition.Id;
@@ -202,7 +203,7 @@ public partial class WorkspaceWindow
     }
     async Task PollState(bool force = false)
     {
-        if (polling || active != null || writingDevices.Count > 0 || !force && !IsVisible) return;
+        if (polling || updateTask != null || installPrepared || active != null || writingDevices.Count > 0 || !force && !IsVisible) return;
         polling = true;
         try {
             var list = await workspace.Backend.Devices(CancellationToken.None);
